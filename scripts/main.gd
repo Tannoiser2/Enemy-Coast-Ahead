@@ -26,6 +26,7 @@ var ui: Control
 var mappa: MappaBersaglio
 var mappa_volo: MappaVolo
 var lavagna: Lavagna
+var vista_lavagna := true
 var bottone_vista: Button
 var vista_volo := false
 var ultima_fase_volo := false
@@ -304,6 +305,7 @@ func _costruisci_tavolo() -> void:
 		mappa_volo = null
 	if g.s.get("campagna", false):
 		lavagna = Lavagna.new()
+		vista_lavagna = true
 		lavagna.position = mappa.position
 		lavagna.size = mappa.size
 		lavagna.anchor_bottom = 1.0
@@ -389,6 +391,10 @@ func _costruisci_tavolo() -> void:
 	pr.add_child(registro)
 
 func _cambia_vista() -> void:
+	if pianificazione():
+		vista_lavagna = not vista_lavagna
+		_applica_vista()
+		return
 	vista_volo = not vista_volo
 	_applica_vista()
 
@@ -396,12 +402,18 @@ func _applica_vista() -> void:
 	if mappa_volo == null:
 		return
 	var piano := pianificazione()
-	if lavagna != null:
-		lavagna.visible = piano
+	if piano and lavagna != null:
+		lavagna.visible = vista_lavagna
 		lavagna.queue_redraw()
-	bottone_vista.visible = not piano
-	mappa_volo.visible = vista_volo and not piano
-	mappa.visible = not vista_volo and not piano
+		mappa_volo.visible = not vista_lavagna
+		mappa.visible = false
+		bottone_vista.text = "Mappa di volo" if vista_lavagna else "Lavagna di pianificazione"
+		mappa_volo.queue_redraw()
+		return
+	if lavagna != null:
+		lavagna.visible = false
+	mappa_volo.visible = vista_volo
+	mappa.visible = not vista_volo
 	bottone_vista.text = "Mappa del bersaglio" if vista_volo else "Mappa di volo"
 	mappa_volo.queue_redraw()
 	mappa.queue_redraw()
@@ -412,7 +424,7 @@ func _aggiorna() -> void:
 		return
 	if mappa_volo != null:
 		var fv := fase_volo()
-		if fv != ultima_fase_volo or (lavagna != null and lavagna.visible != pianificazione()):
+		if fv != ultima_fase_volo or (lavagna != null and not pianificazione() and lavagna.visible):
 			vista_volo = fv
 			ultima_fase_volo = fv
 			_applica_vista()

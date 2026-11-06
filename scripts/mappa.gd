@@ -133,6 +133,7 @@ func _process(delta: float) -> void:
 		var t: Vector2 = obiettivi[id]
 		if not pos_attuale.has(id):
 			pos_attuale[id] = t
+			mosso = true
 		var c: Vector2 = pos_attuale[id]
 		if c.distance_to(t) > 0.5:
 			pos_attuale[id] = c.lerp(t, minf(1.0, delta * 6.0))

@@ -722,7 +722,10 @@ func _salva_online() -> void:
 	if ok:
 		l.text = "Partita salvata. Codice: %s\nScrivilo nel menu («Riprendi online») per riprenderla da qualsiasi dispositivo." % g.s["codice"]
 	else:
-		l.text = "Salvataggio non riuscito: %s" % net.ultimo_errore
+		if net.ultimo_errore.contains("401") or net.ultimo_errore.to_lower().contains("permission"):
+			l.text = "Salvataggio online non riuscito: Firebase non ha ancora le regole per questo gioco (radice enemycoastahead). Vanno aggiornate incollando firebase/database.rules.json della ludoteca nella console di Firebase.\nLa partita resta salvata su questo dispositivo."
+		else:
+			l.text = "Salvataggio non riuscito: %s\nLa partita resta salvata su questo dispositivo." % net.ultimo_errore
 
 func _carica_online(codice: String, esito: Label) -> void:
 	if codice.length() != 6:

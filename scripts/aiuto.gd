@@ -103,10 +103,27 @@ Dopo il turno 8 si ricomincia dal turno 1. Lo scenario finisce quando la diga ce
 
 Il rapporto finale usa le etichette dei Debriefing Chart del libro degli scenari.""",
 
+"Volo": """[b]Scenari di volo (6-9)[/b] - I Lancaster partono da Scampton e attraversano sei zone: Inghilterra, Costa inglese, Mare del Nord, Costa olandese, Ruhr e Weser. Ogni [b]turno di volo[/b] dura un'ora (dalle 21:00 alle 05:00; i turni 6-8 hanno -2 alla visibilità, il turno 9 è sempre nebbia).
+
+[b]Sequenza del turno di volo[/b]
+[b]1. Coordinamento (F1)[/b] - riordinare un'onda scompaginata, unire un Lancaster isolato a un'onda con lo stesso bersaglio, formare una nuova onda con due isolati: 2 dadi contro la peggiore abilità di navigazione (+1 se il capo è veterano). Con la radio rotta non si può.
+[b]2. Radiotelegrafia (F2)[/b] - nuovo bersaglio principale a un'onda o a un Lancaster: 4 o meno non ricevuto · 5-6 frainteso (1 rientro, 2-3 diga con meno ricognizione, 4-5 con più ricognizione, 6 bersaglio di riserva) · 7 disturbato, si ritrasmette con +1 · 8+ ricevuto. Negli scenari 6 e 7 la radio tace finché il bersaglio principale non è aperto; negli scenari 8 e 9 dal turno 5.
+[b]3. Movimento (F3)[/b] - un'onda o un Lancaster avanza di una zona verso il proprio bersaglio. Chi non ha più l'Upkeep rientra (tranne il capo di un'onda). Chi è danneggiato, con motore guasto, luci Aldis guaste o radio rotta può rientrare. Dal turno 7 si può puntare sul bersaglio di riserva. Partenza ritardata: fermo per un turno.
+[b]4. Navigazione (F4)[/b] - 2 dadi contro l'abilità di navigazione del capo (recluta 8, esperto 7, veterano 6): +1 navigatore specialista, -1 per ogni errore di rotta, fotoelettrica, bussola deviata. Un'onda che fallisce perde la formazione; se era già scompaginata, un aereo si perde. Un isolato che fallisce finisce tra i dispersi; dai dispersi esce con un controllo riuscito, altrimenti tabella dei dispersi.
+[b]5. Pericoli (F5)[/b] - Costa inglese 1, Mare del Nord 2 (gialli, non evitabili); Costa olandese 3, Ruhr 2, Weser 2 (azzurri e blu) più 1 per ogni onda o isolato nella zona e più il livello d'allerta. Si dividono il più possibile alla pari fra le onde e gli isolati.
+[b]6. Evitare (F6)[/b] - nelle zone ostili si tolgono tanti pericoli quanto la ricognizione della zona; si vede solo il fronte (sagoma d'aereo, cannone, fascio di luce, palloni, tralicci, punto di domanda). Knight e McCarthy possono schivare un pericolo una volta. Un caccia sullo stesso gruppo di una contraerea si ritira.
+[b]7. Risolvere (F7)[/b] - i pericoli si dividono fra i Lancaster dell'onda (al massimo 3 a testa) e si girano: contraerea (con azione evasiva tra i dispersi), caccia notturni, palloni, schianti, fotoelettriche (controllo di navigazione), uccelli; oppure guasti che restano attaccati (radio, bussola, Merlin, comandi, sgancio, luci Aldis, errore di rotta, equipaggio inabile, partenza ritardata). Il veterano o un pilota specialista salvano con un 6 i pericoli V.
+[b]8. Acquisizione del bersaglio (F8)[/b] - nella zona del bersaglio: 2 dadi contro la ricognizione di zona più diga (0-1: 11 · 2: 10 · 3: 9 · 4: 7 · 5: 6 · 6+: 4). Se fallisce si può insistere con un controllo di navigazione.
+[b]9. Mappa del bersaglio (F9)[/b] - per ogni diga raggiunta si giocano fino a 8 turni d'attacco, come negli scenari 1-5. Un'onda in buon ordine entra coordinata (pari Cerchio vicino, dispari lontano, il capo vicino); gli altri arrivano a un turno d'attacco tirato a caso. Dopo il turno 8 l'azione riprende nel turno di volo successivo. Chi vede la breccia passa al bersaglio secondario o di riserva.
+[b]10. Fine del turno[/b] - una breccia o un attacco di caccia alzano l'allerta di 1; l'attività di ogni diga scende di 1.
+
+Alle 05:00 tutti rientrano. Poi rientro alla base (con il modificatore della zona), ricognizione del mattino e rapporto.""",
+
 "Note": """Versione digitale per uso personale di [b]Enemy Coast Ahead: The Dambuster Raid[/b] (GMT Games, 2014), progetto e grafica di Jeremy White. Mappa e pedine vengono dal modulo Tabletop Simulator; caselle, segnalini e testi sono ridisegnati in italiano.
 
-[b]Cosa c'è[/b]: gli scenari d'attacco 1-5 completi (regole 1.0-5.0), con le tabelle A1-A14 ed E1-E3, gli specialisti storici, il Michelskopf, la nebbia di guerra della Ennepe, il rientro alla base, la ricognizione del mattino e il rapporto.
-[b]Cosa manca per ora[/b]: gli scenari di volo 6-9 (mappa di volo, onde, pericoli, navigazione) e la campagna (scenario 10, con i turni di pianificazione). I dati sono già in parte pronti (pericoli, regole 6.0-7.7).
+[b]Cosa c'è[/b]: gli scenari d'attacco 1-5 (regole 1.0-5.0) e gli scenari di volo 6-9 (regole 6.0-7.10), con le tabelle A1-A14, F1-F9 ed E1-E3, le tre tazze dei pericoli (64 segnalini), gli specialisti storici, il Michelskopf, la nebbia di guerra della Ennepe, il rientro alla base, la ricognizione del mattino e il rapporto.
+[b]Cosa manca per ora[/b]: la campagna (scenario 10, con i turni di pianificazione) e le regole opzionali (alta quota).
+[b]Nei voli[/b]: l'attacco di un caccia notturno sulla mappa di volo abbatte il Lancaster; la ricognizione delle zone è quella iniziale (2); i Lancaster della forza diversiva e della riserva seguono la lettura più probabile del libro degli scenari.
 
 [b]Scelte di conversione[/b]
 - Il libro degli scenari disponibile è una scansione poco leggibile: le combinazioni dei rapporti finali (Debriefing Chart) sono ricostruite in modo coerente con le etichette originali, e anche alcuni valori di partenza (contraerea della Möhne, specialisti di ciascun Lancaster) seguono la lettura più probabile.

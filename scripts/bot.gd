@@ -84,6 +84,39 @@ func scelta() -> String:
 				if id.begins_with("razzo:") and s["razzi"].is_empty() and p.s["visibilita"] == "nebbia":
 					return id
 			return "fine"
+		"v_coord":
+			for id in ids:
+				if id.begins_with("coord:") or id.begins_with("unisci:"):
+					return id
+			return "fine"
+		"v_radio":
+			for id in ids:
+				if id == "fine":
+					continue
+				var c: Dictionary = p.capo_gruppo(id)
+				if not c.is_empty() and s["dighe"][c["primario"]]["breccia"]:
+					return id
+			return "fine"
+		"v_radio_diga":
+			var c: Dictionary = p.capo_gruppo(a["gruppo"])
+			if c.get("secondario", "") in ids:
+				return c["secondario"]
+			if s["riserva"] in ids:
+				return s["riserva"]
+			return ids[0]
+		"v_movi":
+			return "fine"
+		"v_evita":
+			for pref in ["aereo", "cannone", "tralicci", "città", "palloni", "fari", "pericolo"]:
+				for c in a["scelte"]:
+					if c["id"].begins_with("t:") and c["testo"].contains(pref):
+						return c["id"]
+			return "fine"
+		"v_flak_ea":
+			var l: Dictionary = p.lanc(s["flak_volo"]["l"])
+			return "si" if p.danneggiato(l) else "no"
+		"v_acquis":
+			return "ostinato" if int(s["turno_volo"]) >= 6 else "aspetta"
 	if "si" in ids:
 		return "si"
 	return ids[0]

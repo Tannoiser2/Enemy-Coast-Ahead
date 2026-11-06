@@ -17,7 +17,14 @@ Gli scenari d'attacco del libro degli scenari, con le regole 1.0-5.0 complete:
 - **4 · Secondo attacco alla Sorpe**: Brown nella nebbia, con il danno dell'Upkeep di McCarthy già sulla diga.
 - **5 · Attacco alla Ennepe?**: Townsend con un equipaggio recluta e la nebbia di guerra (Ennepe o Bever?).
 
-Gli scenari di volo (6-9) e la campagna (10) non ci sono ancora.
+E gli scenari di volo, con le regole 6.0-7.10:
+
+- **6 · Il volo della forza diversiva**: quattro Lancaster in onda più McCarthy da solo, per la rotta settentrionale verso la Sorpe.
+- **7 · Il volo della forza principale**: le tre ondate di Gibson verso la Möhne e la Eder.
+- **8 · Il volo della riserva mobile**: cinque Lancaster che partono alle 23:00 con l'allerta già a 3; ordini via radio dal turno 5.
+- **9 · Il raid delle dighe**: tutte le forze insieme, diciannove Lancaster.
+
+La campagna (scenario 10, con i turni di pianificazione) non c'è ancora.
 
 ## Cosa fa il gioco
 
@@ -33,6 +40,20 @@ Gli scenari di volo (6-9) e la campagna (10) non ci sono ancora.
   dell'acqua, razzi Very e visibilità.
 - Fine dello scenario, rientro alla base e tabella dei dispersi (E1, E2), ricognizione del mattino (E3), rapporto finale.
 - Specialisti storici (Gibson, Shannon, Martin, Walker, i puntatori...) con i loro effetti.
+
+## Scenari di volo
+
+- Mappa di volo con le sei zone (Inghilterra, Costa inglese, Mare del Nord, Costa olandese, Ruhr, Weser), i riquadri
+  dei dispersi e del rientro, la ricognizione delle zone ostili, le onde (in buon ordine o scompaginate) e gli isolati;
+  a destra le otto dighe con lo stato e i Lancaster che le stanno attaccando, e la traccia dei turni di volo.
+- Turno di volo completo: coordinamento (F1), radiotelegrafia (F2), movimento (F3), navigazione (F4), pericoli
+  piazzati dalle tre tazze (16 gialli, 30 azzurri, 18 blu, con il fronte visibile) (F5), evitare con la ricognizione e
+  con lo «schiva e zigzaga» (F6), risoluzione con contraerea, caccia notturni (Me 109, Me 110, Ju 88), palloni,
+  schianti, fotoelettriche e guasti attaccati, salvataggio del veterano (F7), acquisizione del bersaglio con il
+  tentativo ostinato (F8), mappe del bersaglio con ingresso coordinato o scoordinato e ripresa dopo il turno
+  d'attacco 8 (F9), pulizia con allerta e attività.
+- Un attacco di caccia sulla mappa di volo abbatte il Lancaster; i rapporti finali degli scenari 6-9 sono ricostruiti
+  con le etichette del libro degli scenari (il 9 non ha una tabella leggibile: vale l'rv delle dighe aperte e le perdite).
 
 ## Interfaccia
 
@@ -64,8 +85,8 @@ Player Aid e dalla mappa del modulo.
 - Godot 4.7, rendering gl_compatibility, esportazione web.
 - `scripts/dati.gd` tabelle, dighe, gettoni, Upkeep, specialisti e scenari; `scripts/partita.gd` motore delle regole
   (stato in un dizionario salvabile, decisioni in `s.attesa`); `scripts/bot.gd` giocatore automatico;
-  `scripts/mappa.gd` mappa del bersaglio; `scripts/main.gd` interfaccia; `scripts/aiuto.gd` regole in italiano;
+  `scripts/volo.gd` scenari di volo (estende il motore); `scripts/mappa.gd` mappa del bersaglio; `scripts/mappa_volo.gd` mappa di volo; `scripts/main.gd` interfaccia; `scripts/aiuto.gd` regole in italiano;
   `scripts/net.gd` Firebase.
 - Prove: `godot --headless --script res://tests/partite_auto.gd` (partite automatiche di tutti gli scenari, con
-  salvataggio e ricarica a metà), `xvfb-run godot --script res://tests/screenshot.gd`.
+  salvataggio e ricarica a metà), `tests/voli_auto.gd` (scenari di volo), `xvfb-run godot --script res://tests/screenshot.gd`.
 - Pubblicazione solo su richiesta: Actions → *Pubblica* → *Run workflow*, oppure un commit con `[pubblica]` nel messaggio.

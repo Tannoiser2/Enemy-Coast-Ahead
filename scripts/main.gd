@@ -24,6 +24,10 @@ var tema: Theme
 var radice: Control
 var ui: Control
 var mappa: MappaBersaglio
+var mappa_volo: MappaVolo
+var bottone_vista: Button
+var vista_volo := false
+var ultima_fase_volo := false
 var scheda_diga: Control
 var traccia: Control
 var squadriglia: VBoxContainer
@@ -179,6 +183,11 @@ func _menu() -> void:
 		var lancs: Array = sc["lanc"]
 		var info := "%s · %d Lancaster · %s" % [sc["ora"], lancs.size(), sc["storia"]]
 		sc_box.add_child(_riga_scenario("Scenario %d · %s" % [n, sc["titolo"]], info, func(): _nuova(n, false)))
+	var tv := _etichetta("SCENARI DI VOLO", "titoli", 22, C_ARANCIO)
+	sc_box.add_child(tv)
+	for n in [6, 7, 8, 9]:
+		var sv: Dictionary = Dati.VOLI[n]
+		sc_box.add_child(_riga_scenario("Scenario %d · %s" % [n, sv["titolo"]], "%s · %s" % [sv["ora"], sv["storia"]], func(): _nuova(n, false)))
 	var basso := HBoxContainer.new()
 	basso.add_theme_constant_override("separation", 10)
 	col.add_child(basso)
@@ -210,9 +219,24 @@ func _riga_scenario(titolo: String, testo: String, f: Callable) -> Control:
 
 # ================================================================ partita
 func _nuova(scen: int, facile: bool) -> void:
-	g = Partita.new()
-	g.nuova(scen, 0, facile)
+	if scen >= 6:
+		var v := PartitaVolo.new()
+		v.nuova_volo(scen)
+		g = v
+	else:
+		g = Partita.new()
+		g.nuova(scen, 0, facile)
 	_avvia()
+
+func _da_dati(d: Dictionary) -> void:
+	g = PartitaVolo.new() if d.get("volo", false) else Partita.new()
+	g.importa(d)
+
+func is_volo() -> bool:
+	return g != null and g.s.get("volo", false)
+
+func fase_volo() -> bool:
+	return is_volo() and (g.s["fase"].begins_with("v_") or g.s["fase"] == "specialisti" or (g.s["fase"] == "concluso"))
 
 func _avvia() -> void:
 	bot = Bot.new(g)
@@ -239,6 +263,9 @@ func _costruisci_tavolo() -> void:
 	titolo_scen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	titolo_scen.clip_text = true
 	barra.add_child(titolo_scen)
+	if is_volo():
+		bottone_vista = _bottone("Mappa del bersaglio", _cambia_vista, 15)
+		barra.add_child(bottone_vista)
 	barra.add_child(_bottone("Aiuto", func(): _aiuto(), 15))
 	barra.add_child(_bottone("Salva online", _salva_online, 15))
 	barra.add_child(_bottone("Menu", _menu, 15))
@@ -251,6 +278,20 @@ func _costruisci_tavolo() -> void:
 	ui.add_child(mappa)
 	mappa.imposta(g, fonts)
 	mappa.pedina_cliccata.connect(_clic_pedina)
+	if is_volo():
+		mappa_volo = MappaVolo.new()
+		mappa_volo.position = mappa.position
+		mappa_volo.size = mappa.size
+		mappa_volo.anchor_bottom = 1.0
+		mappa_volo.offset_bottom = -8
+		ui.add_child(mappa_volo)
+		mappa_volo.imposta(g, fonts)
+		mappa_volo.pedina_cliccata.connect(_clic_pedina)
+		vista_volo = fase_volo()
+		ultima_fase_volo = vista_volo
+		_applica_vista()
+	else:
+		mappa_volo = null
 	# colonna destra
 	var dx := VBoxContainer.new()
 	dx.position = Vector2(866, 54)
@@ -326,10 +367,30 @@ func _costruisci_tavolo() -> void:
 	registro.add_theme_color_override("default_color", Color(0.15, 0.13, 0.1))
 	pr.add_child(registro)
 
+func _cambia_vista() -> void:
+	vista_volo = not vista_volo
+	_applica_vista()
+
+func _applica_vista() -> void:
+	if mappa_volo == null:
+		return
+	mappa_volo.visible = vista_volo
+	mappa.visible = not vista_volo
+	bottone_vista.text = "Mappa del bersaglio" if vista_volo else "Mappa di volo"
+	mappa_volo.queue_redraw()
+	mappa.queue_redraw()
+
 # ================================================================ aggiornamento
 func _aggiorna() -> void:
 	if g == null or ui == null:
 		return
+	if mappa_volo != null:
+		var fv := fase_volo()
+		if fv != ultima_fase_volo:
+			vista_volo = fv
+			ultima_fase_volo = fv
+			_applica_vista()
+		mappa_volo.queue_redraw()
 	titolo_scen.text = "%s%s" % [g.nome_scenario(), " (prima partita)" if g.s["facile"] else ""]
 	# registro
 	var righe: Array = g.s["log"]
@@ -388,7 +449,15 @@ func _squadriglia() -> void:
 func _stato_lanc(l: Dictionary) -> String:
 	var dove: String = {"vicino": "Cerchio vicino", "lontano": "Cerchio lontano", "avvicinamento": "all'attacco", "scorta": "di scorta",
 		"sgancio": "sgancio", "salita": "in risalita", "distrutto": "abbattuto", "partito": "rientra alla base",
-		"disperso": "disperso", "a casa": "a Scampton", "perso": "perso", "prosegue": "prosegue"}.get(l["pos"], l["pos"])
+		"disperso": "disperso", "a casa": "a Scampton", "perso": "perso", "prosegue": "prosegue",
+		"smarrito": "fuori rotta", "rtb": "rientra alla base", "attesa": "a Scampton", "acquisizione": "trova il bersaglio",
+		"in_arrivo": "in arrivo sulla diga"}.get(l["pos"], l["pos"])
+	if l["pos"] == "volo":
+		dove = Dati.NOME_ZONA[l["zona"]]
+		if l.get("onda", "") != "":
+			dove += ", in onda"
+	if l.get("diga", "") != "" and l["pos"] in ["vicino", "lontano", "avvicinamento", "scorta", "sgancio", "salita", "acquisizione", "in_arrivo"] and is_volo():
+		dove += " (%s)" % Dati.DIGHE[l["diga"]]["nome"]
 	var t: String = Dati.NOME_EQUIPAGGIO[l["equip"]].to_lower() + " · " + dove
 	if g.danneggiato(l) and l["pos"] not in ["distrutto", "perso"]:
 		t += " · danneggiato"
@@ -558,6 +627,14 @@ func _disegna_traccia() -> void:
 		return
 	var c := traccia
 	var w := c.size.x
+	if fase_volo():
+		c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
+		var tv: int = int(g.s["turno_volo"])
+		c.draw_string(fonts["titoli"], Vector2(12, 30), "TURNO DI VOLO %d · ore %s" % [tv, Dati.ORA_VOLO[tv]], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+		var nomi := {"v_coord": "coordinamento", "v_radio": "radiotelegrafia", "v_movi": "movimento", "v_nav": "navigazione", "v_pericoli": "pericoli",
+			"v_evita": "evitare i pericoli", "v_risolvi": "risolvere i pericoli", "v_acquis": "acquisizione del bersaglio", "v_bersagli": "mappe del bersaglio", "v_pulizia": "fine del turno"}
+		c.draw_string(fonts["testo"], Vector2(12, 54), "fase: %s · allerta %d" % [nomi.get(g.s["fase"], "preparazione"), int(g.s["allerta"])], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, C_GRIGIO)
+		return
 	var lato := (w - 150) / 8.0
 	c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
 	for i in 8:
@@ -602,7 +679,12 @@ func _disegna_dadi() -> void:
 	for i in vals.size():
 		var tenuto := ten.is_empty() or i in ten or float(i) in ten
 		_dado(c, Vector2(12 + i * 48, 26), 40, int(vals[i]), tenuto)
-	c.draw_string(fonts["titoli"], Vector2(20 + vals.size() * 48, 56), str(d["esito"]), HORIZONTAL_ALIGNMENT_LEFT, c.size.x - 30 - vals.size() * 48, 22, C_ORO)
+	var es := str(d["esito"])
+	var spazio: float = c.size.x - 30 - vals.size() * 48
+	var fs := 22
+	while fs > 11 and fonts["titoli"].get_string_size(es, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > spazio:
+		fs -= 1
+	c.draw_string(fonts["titoli"], Vector2(20 + vals.size() * 48, 56), es, HORIZONTAL_ALIGNMENT_LEFT, spazio, fs, C_ORO)
 
 func _dado(c: Control, p: Vector2, s: float, v: int, tenuto: bool) -> void:
 	var fondo := Color(0.93, 0.91, 0.86) if tenuto else Color(0.45, 0.44, 0.42)
@@ -620,7 +702,7 @@ func _rapporto() -> void:
 	if finestra != null:
 		return
 	var e: Dictionary = g.s["esito"]
-	var v := _finestra("Rapporto della missione", 760, 600)
+	var v := _finestra("Rapporto della missione", 1000 if is_volo() else 760, 760 if is_volo() else 600)
 	v.add_child(_etichetta(g.nome_scenario(), "serif", 20, C_GRIGIO))
 	var t := _etichetta(str(e.get("titolo", "")).to_upper(), "titoli", 44, C_ORO)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -629,10 +711,19 @@ func _rapporto() -> void:
 	var riass := "Diga della %s: %s. Danni %d su %d." % [Dati.DIGHE[nd]["nome"], "BRECCIA" if e.get("breccia", false) else "regge", int(e.get("danni", 0)), int(e.get("capacita", 0))]
 	if int(g.s["scen"]) == 5:
 		riass = "Ennepe: danni %d · Bever: danni %d." % [g.danni_diga("ennepe"), g.danni_diga("bever")]
+	if is_volo():
+		var rotte: Array = e.get("dighe_rotte", [])
+		riass = ("Dighe aperte: %s (%d rv)." % [", ".join(rotte), int(e.get("rv", 0))]) if not rotte.is_empty() else "Nessuna diga aperta."
+		riass += " Lancaster perduti: %d." % int(e.get("persi", 0))
 	v.add_child(_etichetta(riass, "grassetto", 18, C_TESTO))
-	v.add_child(_etichetta("Lancaster rientrati: %d · che proseguono: %d · Upkeep ancora a bordo: %d" % [int(e.get("rientrati", 0)), int(e.get("proseguono", 0)), int(e.get("upkeep", 0))], "testo", 16, C_GRIGIO))
+	if not is_volo():
+		v.add_child(_etichetta("Lancaster rientrati: %d · che proseguono: %d · Upkeep ancora a bordo: %d" % [int(e.get("rientrati", 0)), int(e.get("proseguono", 0)), int(e.get("upkeep", 0))], "testo", 16, C_GRIGIO))
+	var gr := GridContainer.new()
+	gr.columns = 2 if e.get("righe", []).size() > 9 else 1
+	gr.add_theme_constant_override("h_separation", 24)
+	v.add_child(gr)
 	for r in e.get("righe", []):
-		v.add_child(_etichetta("· " + str(r), "testo", 16, C_TESTO))
+		gr.add_child(_etichetta("· " + str(r), "testo", 15 if gr.columns == 2 else 16, C_TESTO))
 	var sp := _etichetta(str(e.get("spiega", "")), "serif", 18, Color(0.8, 0.78, 0.7))
 	sp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(sp)
@@ -705,8 +796,7 @@ func _carica_locale() -> void:
 		return
 	var d = JSON.parse_string(f.get_as_text())
 	if d is Dictionary:
-		g = Partita.new()
-		g.importa(d)
+		_da_dati(d)
 		_avvia()
 
 func _salva_online() -> void:
@@ -736,6 +826,5 @@ func _carica_online(codice: String, esito: Label) -> void:
 	if d == null:
 		esito.text = "Partita non trovata (%s)." % net.ultimo_errore
 		return
-	g = Partita.new()
-	g.importa(d)
+	_da_dati(d)
 	_avvia()

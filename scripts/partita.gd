@@ -106,7 +106,7 @@ func _mescola(a: Array) -> void:
 
 # ================================================================ interrogazioni
 func scenario() -> Dictionary:
-	return Dati.SCENARI[int(s["scen"])]
+	return Dati.SCENARI[int(s["scen"])] if Dati.SCENARI.has(int(s["scen"])) else Dati.VOLI[int(s["scen"])]
 
 func nome_scenario() -> String:
 	return "Scenario %d: %s" % [int(s["scen"]), scenario()["titolo"]]
@@ -145,7 +145,17 @@ func danni_diga(d: String, anche_nascosti := false) -> int:
 	return t
 
 func addestramento(l: Dictionary) -> int:
-	return int(Dati.ADDESTRAMENTO[l["equip"]])
+	var v := int(Dati.ADDESTRAMENTO[l["equip"]])
+	if ha_guasto(l, "inabile"):
+		v -= 3
+	return maxi(v, 0)
+
+## Pericoli attaccati al Lancaster negli scenari di volo (lista vuota negli scenari d'attacco).
+func ha_guasto(l: Dictionary, g: String) -> bool:
+	return g in l.get("guasti", [])
+
+func conta_guasti(l: Dictionary, g: String) -> int:
+	return l.get("guasti", []).count(g)
 
 func ruolo(l: Dictionary) -> String:
 	if l["elite"] == "":
@@ -454,14 +464,18 @@ func _quanti(tipo: String) -> int:
 	var n := Dati.gettoni_da_livello(addestramento(l))
 	if tipo == "v":
 		if ruolo(l) == "motorista": n += 1
+		if ha_guasto(l, "comandi_v"): n -= 1
 		n -= int(s["avv"]["S"])
 	else:
 		if ruolo(l) == "navigatore_q": n += 1
+		if ha_guasto(l, "comandi_q"): n -= 1
 		n -= int(s["avv"]["A"])
 	return n
 
 func _puo_quota() -> bool:
-	return s["avv"]["luci"] or Dati.senza_zona_vicina(s["avv"]["diga"])
+	if Dati.senza_zona_vicina(s["avv"]["diga"]):
+		return true
+	return s["avv"]["luci"] and not ha_guasto(lanc(s["avv"]["lanc"]), "no_aldis")
 
 ## Passi 2 e 3: controllo della velocità e della quota (A2, A3).
 func _f_pesca(tipo: String, dopo: String) -> void:
@@ -803,7 +817,8 @@ func _danneggia(t: Dictionary, causa: String) -> void:
 	if int(t["danni"]) >= 2:
 		t["pos"] = "distrutto"
 		t["esito"] = "abbattuto (%s)" % causa
-		dg()["attivita"] = int(dg()["attivita"]) + 1
+		if in_mappa(t) or s.get("fase", "").begins_with("avv") or s.get("fase", "") in ["flak", "sg_3", "sg_4", "sg_5"]:
+			dg()["attivita"] = int(dg()["attivita"]) + 1
 		_log("%s è abbattuto! (%s)" % [nome_l(t), causa])
 		s["eventi"].append({"tipo": "abbattuto", "lanc": t["id"]})
 		if int(t["upkeep"]) >= 0:
@@ -927,6 +942,8 @@ func modificatori_sgancio() -> Array:
 		m.append(["Fotoelettriche", -4])
 	if danneggiato(l):
 		m.append(["Lancaster danneggiato", -1])
+	if ha_guasto(l, "sgancio_dif"):
+		m.append(["Sgancio difettoso", -1])
 	return m
 
 func _f_sgancio() -> void:
@@ -1151,14 +1168,18 @@ func _f_caccia() -> void:
 				vitt["esito"] = "abbattuto da un caccia notturno"
 				_log("%s è abbattuto dal caccia notturno!" % nome_l(vitt))
 				s["eventi"].append({"tipo": "abbattuto", "lanc": vitt["id"]})
-			for l in sulla_mappa():
-				l["pos"] = "disperso"
-			_log("Gli altri Lancaster si disperdono: l'attacco alla diga è finito.")
-			s["caccia_attacco"] = true
-			s["fine"] = "caccia"
-			s["fase"] = "concludi"
+			_caccia_attacca()
 			return
 	s["fase"] = "st_4"
+
+## Il caccia ha attaccato: negli scenari d'attacco la partita finisce (i Lancaster si disperdono).
+func _caccia_attacca() -> void:
+	for l in sulla_mappa():
+		l["pos"] = "disperso"
+	_log("Gli altri Lancaster si disperdono: l'attacco alla diga è finito.")
+	s["caccia_attacco"] = true
+	s["fine"] = "caccia"
+	s["fase"] = "concludi"
 
 func _f_detonazione() -> void:
 	if lanc_in("vicino").is_empty():
@@ -1287,8 +1308,11 @@ func _mod_rientro(l: Dictionary, zona: String) -> Array:
 	if l["equip"] == "veterano": m.append(["equipaggio veterano", 1])
 	if l["elite"] != "": m.append(["specialista a bordo", 1])
 	if danneggiato(l): m.append(["danneggiato", -1])
+	if ha_guasto(l, "merlin"): m.append(["motore Merlin guasto", -1])
+	if ha_guasto(l, "bussola") and int(l["upkeep"]) >= 0: m.append(["bussola deviata", -1])
 	if zona == "Ruhr": m.append(["zona della Ruhr", -1])
 	if zona == "Weser": m.append(["zona del Weser", -2])
+	if zona == "Costa": m.append(["costa inglese o Mare del Nord", 2])
 	if int(s["allerta"]) >= 4: m.append(["allarme", -1])
 	if int(s["malus_rtb"]) != 0: m.append(["carburante", int(s["malus_rtb"])])
 	return m

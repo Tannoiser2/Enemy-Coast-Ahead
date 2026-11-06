@@ -131,6 +131,9 @@ const LANCASTER := {
 	"AJ-N": {"pilota": "Knight", "paese": "AUS"}, "AJ-O": {"pilota": "Townsend", "paese": "GB"},
 	"AJ-P": {"pilota": "Martin", "paese": "AUS"}, "AJ-T": {"pilota": "McCarthy", "paese": "USA"},
 	"AJ-Z": {"pilota": "Maudslay", "paese": "GB"},
+	"AJ-C": {"pilota": "Ottley", "paese": "GB"}, "AJ-H": {"pilota": "Rice", "paese": "GB"},
+	"AJ-K": {"pilota": "Byers", "paese": "CAN"}, "AJ-S": {"pilota": "Burpee", "paese": "CAN"},
+	"AJ-W": {"pilota": "Munro", "paese": "NZ"}, "AJ-Y": {"pilota": "Anderson", "paese": "USA"},
 }
 
 # ------------------------------------------------------------------ specialisti (Elite Crewmen)
@@ -163,6 +166,7 @@ const SPECIALISTI := {
 	"franklin":     {"nome": "Franklin",     "ruolo": "bombardiere"},
 	"townsend":     {"nome": "Townsend",     "ruolo": "pilota_mappa"},
 	"nicholson":    {"nome": "Nicholson",    "ruolo": "navigatore"},
+	"gillespie":    {"nome": "Gillespie",    "ruolo": "bombardiere"},
 }
 const RUOLI := {
 	"comandante":       ["Comandante di stormo", "Un tiro ripetuto per partita."],
@@ -237,4 +241,90 @@ const SCENARI := {
 		"lanc": [["AJ-O", "recluta", true, "vicino", false, ["franklin"]]],
 		"storia": "Townsend vola da solo con la riserva mobile, nella foschia dell'alba. La diga che vede sotto di sé è la Ennepe... o forse la Bever, pochi chilometri più in là: anche oggi gli storici ne discutono.",
 	},
+}
+
+# ================================================================== scenari di volo (Parte 2)
+const ZONE := ["inghilterra", "costa_inglese", "mare", "costa_olandese", "ruhr", "weser"]
+const NOME_ZONA := {"inghilterra": "Inghilterra", "costa_inglese": "Costa inglese", "mare": "Mare del Nord",
+	"costa_olandese": "Costa olandese", "ruhr": "Ruhr", "weser": "Weser"}
+## Pericoli di base per zona: [numero, tazza, ostile (pericoli in più e schivabili)]
+const PERICOLI_ZONA := {"inghilterra": [0, "", false], "costa_inglese": [1, "giallo", false], "mare": [2, "giallo", false],
+	"costa_olandese": [3, "azzurro", true], "ruhr": [2, "azzurro", true], "weser": [2, "blu", true]}
+const ORA_VOLO := ["", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"]
+## Modificatore della visibilità per turno di volo (il turno 9 è sempre nebbia).
+const VIS_VOLO := [0, 0, 0, 0, 0, 0, -2, -2, -2, -99, 0]
+## Abilità di navigazione dal livello di addestramento (Mission Planning Blotter).
+static func navigazione(l: int) -> int:
+	return [10, 9, 8, 7, 7, 6, 5, 4][clampi(l, 0, 7)]
+## Acquisizione del bersaglio (F8): somma delle ricognizioni di zona e diga -> tiro minimo con la luna.
+static func acquisizione(r: int) -> int:
+	if r <= 1: return 11
+	return [11, 11, 10, 9, 7, 6, 4][mini(r, 6)]
+## Caccia sulla mappa di volo (A6 passo 2): intervallo d'attacco per tipo.
+const CACCIA_VOLO := {"Me 109": [2, 5], "Me 110": [4, 6], "Ju 88": [5, 7]}
+
+## Le tre tazze dei pericoli: [fronte visibile, tipo, valore]. Fronte: ? (mistero), aereo, cannone, fari,
+## palloni, tralicci, città. Tipi: vedi PERICOLI.
+const TAZZE := {
+	"giallo": [["?", "comandi_v", 0], ["?", "comandi_v", 0], ["?", "nessuno", 0], ["?", "inabile", 0], ["?", "bussola", 0],
+		["?", "uccelli", 0], ["?", "merlin", 0], ["?", "merlin", 0], ["?", "ritardo", 0], ["?", "ritardo", 0],
+		["?", "sgancio_dif", 0], ["?", "errore", 0], ["?", "errore", 0], ["?", "no_aldis", 0], ["?", "comandi_q", 0], ["?", "radio", 0]],
+	"azzurro": [["?", "errore", 0], ["?", "flak", 5], ["?", "flak", 4], ["?", "palloni", 0], ["?", "fari", 0], ["?", "fari", 0],
+		["?", "caccia", 109], ["?", "fari", 0], ["?", "flak", 2], ["?", "errore", 0], ["?", "errore", 0], ["?", "fari", 0],
+		["?", "schianto", 0], ["?", "schianto", 0], ["?", "errore", 0], ["?", "errore", 0], ["?", "errore", 0],
+		["aereo", "caccia", 110], ["aereo", "caccia", 110],
+		["cannone", "flak", 4], ["cannone", "flak", 5], ["cannone", "flak", 4], ["cannone", "flak", 3], ["cannone", "flak", 3], ["cannone", "flak", 1],
+		["fari", "fari", 0], ["fari", "fari", 0], ["fari", "fari", 0], ["palloni", "palloni", 0], ["tralicci", "schianto", 0]],
+	"blu": [["?", "fari", 0], ["?", "errore", 0], ["?", "caccia", 110], ["?", "flak", 5], ["?", "flak", 1], ["?", "fari", 0],
+		["?", "schianto", 0], ["?", "flak", 2], ["?", "fari", 0],
+		["cannone", "flak", 4], ["cannone", "flak", 4], ["cannone", "flak", 4], ["cannone", "flak", 5], ["cannone", "flak", 3],
+		["fari", "fari", 0], ["fari", "fari", 0], ["aereo", "caccia", 88], ["città", "schianto", 0]],
+}
+const PERICOLI := {
+	"comandi_v": "Comandi difettosi (-1 gettone Velocità)", "comandi_q": "Comandi difettosi (-1 gettone Quota)",
+	"nessuno": "Nessun pericolo", "inabile": "Equipaggio inabile (-3 all'addestramento)", "bussola": "Bussola deviata",
+	"uccelli": "Uccelli o pipistrelli", "merlin": "Motore Merlin guasto", "ritardo": "Partenza ritardata",
+	"sgancio_dif": "Sgancio difettoso (-1)", "errore": "Errore di rotta", "no_aldis": "Luci Aldis guaste",
+	"radio": "Radio rotta", "flak": "Contraerea", "palloni": "Palloni di sbarramento", "fari": "Fotoelettriche",
+	"caccia": "Caccia notturno", "schianto": "Schianto (linee elettriche, alberi)",
+}
+## Pericoli che restano attaccati al Lancaster.
+const ATTACCATI := ["comandi_v", "comandi_q", "inabile", "bussola", "merlin", "ritardo", "sgancio_dif", "errore", "no_aldis", "radio"]
+## Pericoli con il salvataggio del veterano (V).
+const CON_V := ["uccelli", "palloni", "schianto"]
+
+## Scenari di volo. onde: [nome, capo, [membri]]; lanc: [id, equipaggio, specialisti, upkeep];
+## primario/secondario/riserva: dighe; turno: turno di volo d'inizio; entra: turno in cui il gruppo parte.
+const VOLI := {
+	6: {"titolo": "Il volo della forza diversiva", "ora": "21:00 del 16 maggio 1943", "turno": 1, "allerta": 1,
+		"storia": "Cinque Lancaster partono per la rotta settentrionale, sopra le isole olandesi: devono attaccare la Sorpe e attirare su di sé l'attenzione della difesa tedesca. AJ-T di McCarthy, partito in ritardo con l'aereo di riserva, vola da solo.",
+		"forze": [
+			{"onda": "Forza diversiva", "capo": "AJ-E", "primario": "sorpe", "secondario": "", "entra": 1,
+			 "lanc": [["AJ-E", "esperto", ["gillespie"]], ["AJ-H", "recluta", []], ["AJ-K", "esperto", []], ["AJ-W", "esperto", []]]},
+			{"onda": "", "capo": "", "primario": "sorpe", "secondario": "", "entra": 1, "bussola": true,
+			 "lanc": [["AJ-T", "esperto", ["mccarthy", "johnson"]]]},
+		],
+		"riserva": "ennepe", "radio_da": "sorpe", "dighe_recon": {"mohne": 2, "eder": 2, "sorpe": 2}},
+	7: {"titolo": "Il volo della forza principale", "ora": "21:30 del 16 maggio 1943", "turno": 1, "allerta": 1,
+		"storia": "Le tre ondate di Gibson attraversano il Mare del Nord a bassissima quota verso la Möhne. Le Upkeep che avanzeranno sono per la Eder; la Sorpe è il bersaglio di riserva.",
+		"forze": [
+			{"onda": "Prima ondata", "capo": "AJ-G", "primario": "mohne", "secondario": "eder", "entra": 1,
+			 "lanc": [["AJ-G", "veterano", ["gibson", "trevor_roper", "deering"]], ["AJ-M", "veterano", ["gregory", "hopgood"]], ["AJ-P", "veterano", ["martin", "leggo"]]]},
+			{"onda": "Seconda ondata", "capo": "AJ-A", "primario": "mohne", "secondario": "eder", "entra": 1,
+			 "lanc": [["AJ-A", "veterano", ["nicholson"]], ["AJ-J", "esperto", []], ["AJ-L", "veterano", ["shannon", "walker"]]]},
+			{"onda": "Terza ondata", "capo": "AJ-N", "primario": "mohne", "secondario": "eder", "entra": 1,
+			 "lanc": [["AJ-N", "esperto", ["knight"]], ["AJ-B", "veterano", []], ["AJ-Z", "veterano", ["urquhart"]]]},
+		],
+		"riserva": "sorpe", "radio_da": "mohne", "attivita": {"mohne": 1}, "dighe_recon": {"mohne": 2, "eder": 2, "sorpe": 2}},
+	8: {"titolo": "Il volo della riserva mobile", "ora": "23:00 del 16 maggio 1943", "turno": 3, "allerta": 3,
+		"storia": "Quando la riserva mobile decolla le difese sono già in allarme. Gli ordini arriveranno per radio: Möhne ed Eder, se servono ancora, altrimenti la Sorpe e le dighe minori.",
+		"forze": [
+			{"onda": "Riserva mobile", "capo": "AJ-C", "primario": "mohne", "secondario": "eder", "entra": 3,
+			 "lanc": [["AJ-C", "esperto", []], ["AJ-F", "esperto", ["oancia"]], ["AJ-O", "recluta", ["townsend", "franklin"]], ["AJ-S", "esperto", []], ["AJ-Y", "recluta", []]]},
+		],
+		"riserva": "ennepe", "radio_turno": 5, "attivita": {"sorpe": 1}, "danno_sorpe": true, "dighe_recon": {"mohne": 2, "eder": 2, "sorpe": 2}},
+	9: {"titolo": "Il raid delle dighe (tutte le forze)", "ora": "21:00 del 16 maggio 1943", "turno": 1, "allerta": 1,
+		"storia": "Diciannove Lancaster: la forza diversiva verso la Sorpe, le tre ondate verso la Möhne e la Eder, la riserva mobile che decolla due ore dopo. Tutta l'Operazione Chastise.",
+		"forze": [],
+		"riserva": "ennepe", "radio_turno": 5, "dighe_recon": {"mohne": 2, "eder": 2, "sorpe": 2}},
 }

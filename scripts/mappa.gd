@@ -1,13 +1,11 @@
-## Mappa del bersaglio: sfondo originale (senza scritte inglesi), caselle e scritte italiane disegnate qui,
-## pedine dei Lancaster che si spostano con un'animazione. Le coordinate sono quelle del ritaglio 1050x1010
-## della mappa originale.
+## Mappa del bersaglio: l'immagine originale (con le scritte in italiano), pedine dei Lancaster che si spostano
+## con un'animazione, la zona attiva evidenziata, i gettoni Velocità e Quota nelle caselle A2 e A3.
+## Le coordinate sono quelle del ritaglio 1050x1010 della mappa originale.
 class_name MappaBersaglio
-extends Control
+extends Tavola
 
 signal pedina_cliccata(id: String)
 
-const W := 1050.0
-const H := 1010.0
 const PED := 70.0
 
 const LAYOUT := {
@@ -44,18 +42,17 @@ const LAYOUT := {
 }
 
 var p: Partita
-var tex := {}
-var fonts := {}
 var mappa := "mohne"
 var pos_attuale := {}
 var evidenzia := {}   # id del Lancaster -> true se cliccabile ora
 var lampo := {}       # id -> tempo residuo dell'effetto (colpito, abbattuto)
-var scala := 1.0
-var origine := Vector2.ZERO
+
+func _init() -> void:
+	W = 1050.0
+	H = 1010.0
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	tooltip_text = " "
+	super._ready()
 	for m in ["mohne", "eder", "sorpe"]:
 		tex["mappa_" + m] = load("res://assets/mappe/%s.jpg" % m)
 
@@ -68,12 +65,6 @@ func imposta(partita: Partita, f: Dictionary) -> void:
 
 func _aggiorna_mappa() -> void:
 	mappa = Dati.DIGHE[p.diga_corrente()]["mappa"]
-
-func _tex(nome: String) -> Texture2D:
-	if not tex.has(nome):
-		var path := "res://assets/" + nome
-		tex[nome] = load(path) if ResourceLoader.exists(path) else null
-	return tex[nome]
 
 # ------------------------------------------------------------------ geometria
 func _rot(v: Vector2, gradi: float) -> Vector2:
@@ -150,38 +141,26 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 # ------------------------------------------------------------------ disegno
-func _calcola_scala() -> void:
-	scala = minf(size.x / W, size.y / H)
-	origine = (size - Vector2(W, H) * scala) * 0.5
-
 func _draw() -> void:
 	if p == null:
 		return
-	_calcola_scala()
-	draw_set_transform(origine, 0.0, Vector2(scala, scala))
+	inizia()
 	var L: Dictionary = LAYOUT[mappa]
 	draw_texture_rect(tex["mappa_" + mappa], Rect2(0, 0, W, H), false)
-	# titolo della diga
-	var nome_diga: String = Dati.DIGHE[p.diga_corrente()]["nome"].to_upper()
-	_testo(fonts["titoli"], "DIGA DELLA " + nome_diga, L.get("titolo", Vector2(525, 34)), 40 if not L.has("titolo") else 32, Color(0.95, 0.95, 0.95), 0.0, true)
-	if L.has("nota"):
-		var righe: PackedStringArray = L["nota"].split("\n")
-		for i in righe.size():
-			_testo(fonts["testo"], righe[i], L["nota_pos"] + Vector2(0, i * 24), 19, Color(0.86, 0.88, 0.9, 0.92), 0.0, true)
-	_box_cerchio(L["vicino"], "Cerchio vicino", ["si può passare al Cerchio lontano", "o lasciare il bersaglio", "si possono sparare razzi Very"])
-	_box_cerchio(L["lontano"], "Cerchio lontano", ["si può passare al Cerchio vicino", "o lasciare il bersaglio"])
-	_box_salita(L["salita"])
-	if L.has("michel"):
-		_box_michel(L["michel"])
 	_zone(L)
 	_sgancio(L)
-	for sc in L["scritte"]:
-		_testo(fonts["grassetto"], sc[0], sc[1], 19, Color(0.86, 0.87, 0.9, 0.85), sc[2], true)
+	if L.has("michel") and p.s["avv"].has("lanc") and p.s["avv"].get("diga", "") == "eder":
+		var r: Rect2 = L["michel"]
+		testo("grassetto", "segni M ora: %d" % int(p.s["avv"]["m"]), Vector2(r.position.x + r.size.x * 0.5, r.end.y + 16), 19, Color(1, 0.8, 0.4))
+	# nome della diga attaccata quando la mappa serve per un'altra diga
+	var dn: String = p.diga_corrente()
+	if Dati.DIGHE[dn]["mappa"] != dn:
+		var pos: Vector2 = L.get("titolo", Vector2(525, 34)) + Vector2(0, 40 if not L.has("titolo") else 36)
+		testo("grassetto", "attacco alla diga %s" % Dati.DIGHE[dn]["nome"], pos, 22, Color(1, 0.8, 0.4))
 	# pedine
-	var ord := pos_attuale.keys()
-	for id in ord:
+	for id in pos_attuale.keys():
 		_pedina(p.lanc(id), pos_attuale[id])
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	finisci()
 
 func _testo(f: Font, t: String, c: Vector2, sz: int, col: Color, gradi := 0.0, centrato := true, ombra := true) -> void:
 	var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
@@ -247,35 +226,13 @@ func _zone(L: Dictionary) -> void:
 	var ang: float = L["angolo"]
 	var avv: Dictionary = p.s["avv"]
 	var zona_att: String = avv.get("zona", "") if avv.has("lanc") else ""
-	for zona in L["zone"]:
-		var z: Array = L["zone"][zona]
-		var c: Vector2 = z[0]
-		var lato: float = z[1]
-		var attiva: bool = zona == zona_att
-		# pannello esterno con le due strisce delle scorte
-		_quadrato_ruotato(c, Vector2(lato + 40, lato + 2 * 76 + 10), ang, Color(0.5, 0.52, 0.55, 0.88), Color(1, 0.78, 0.3) if attiva else Color(0.35, 0.36, 0.38), 5.0 if attiva else 3.0)
-		for i in 2:
-			var e := _scorta(zona, i)
-			_quadrato_ruotato(e, Vector2(lato + 8, 62), ang, Color(0.4, 0.41, 0.44, 0.9), Color(0.3, 0.31, 0.33), 2.0)
-			_testo(fonts["testo"], "scorta", e + _rot(Vector2(0, 0), ang), 18, Color(0.15, 0.15, 0.16), ang, true, false)
-		var principale := Color(0.78, 0.79, 0.8, 0.96) if zona != "lontana" else Color(0.86, 0.86, 0.85, 0.97)
-		_quadrato_ruotato(c, Vector2(lato, lato), ang, principale, Color(0.25, 0.26, 0.28), 6.0 if zona == "lontana" else 3.0)
-		if zona == "lontana":
-			_testo(fonts["titoli"], "avvicinamento", c + _rot(Vector2(0, 8), ang), 24, Color(0.82, 0.1, 0.1), ang - 18, true, false)
-			_testo(fonts["testo"], "contraerea", c + _rot(Vector2(-30, -lato * 0.36), ang), 16, TESTO_BOX, ang, true, false)
-			_testo(fonts["grassetto"], "-2 se sganci qui", c + _rot(Vector2(0, lato * 0.36), ang), 15, Color(0.75, 0.1, 0.1), ang, true, false)
-		else:
-			_testo(fonts["testo"], "contraerea, poi", c + _rot(Vector2(0, -lato * 0.22), ang), 16, TESTO_BOX, ang, true, false)
-			_testo(fonts["testo"], "mitragliatrici", c + _rot(Vector2(0, -lato * 0.22 + 20), ang), 16, TESTO_BOX, ang, true, false)
-			if zona == "ravvicinata":
-				_testo(fonts["testo"], "sgancio tardivo?", c + _rot(Vector2(0, lato * 0.3), ang), 15, TESTO_BOX, ang, true, false)
-			if zona == "vicina" and L.get("m_vicina", false):
-				_segno_m(c + _rot(Vector2(0, lato * 0.3), ang), 11)
-		var col_t := Color(0.95, 0.42, 0.27) if not attiva else Color(1, 0.75, 0.3)
-		_testo(fonts["titoli"], zona, L["titoli"][zona] + _rot(Vector2(0, -14), ang), 34, col_t, ang, true)
-	# caselle dei gettoni (zona lontana)
+	if zona_att != "" and L["zone"].has(zona_att):
+		var z: Array = L["zone"][zona_att]
+		var a := 0.55 + 0.45 * sin(Time.get_ticks_msec() / 260.0)
+		_quadrato_ruotato(z[0], Vector2(z[1] + 40, z[1] + 2 * 76 + 10), ang, Color(0, 0, 0, 0), Color(1, 0.78, 0.3, a), 6.0)
+		queue_redraw()
+	# gettoni Velocità e Quota nelle caselle A2 e A3
 	for k in ["gv", "gq"]:
-		_quadrato_ruotato(L[k], Vector2(86, 86), ang, Color(0.35, 0.36, 0.38, 0.92), Color(0.2, 0.2, 0.22), 4.0)
 		var tipo := "v" if k == "gv" else "q"
 		var g: String = avv.get(tipo, "") if avv.has("lanc") else ""
 		var gs: String = avv.get("sg_" + tipo, "") if avv.has("lanc") else ""
@@ -283,8 +240,6 @@ func _zone(L: Dictionary) -> void:
 			_gettone(L[k], gs, tipo, true, ang)
 		elif g != "":
 			_gettone(L[k], g, tipo, false, ang)
-		else:
-			_testo(fonts["testo"], "velocità" if tipo == "v" else "quota", L[k], 15, Color(0.85, 0.86, 0.88, 0.8), ang, true, false)
 
 func _gettone(c: Vector2, id: String, tipo: String, sgancio: bool, ang: float) -> void:
 	var g := Dati.gettone(id)
@@ -301,15 +256,7 @@ func _gettone(c: Vector2, id: String, tipo: String, sgancio: bool, ang: float) -
 		_testo(fonts["testo"], "%d gettoni" % int(g["n"]) if int(g["n"]) != 1 else "1 gettone", c + _rot(Vector2(0, 20), ang), 14, Color(0.12, 0.1, 0.08), ang, true, false)
 
 func _sgancio(L: Dictionary) -> void:
-	var sg: Array = L["sgancio"]
-	_quadrato_ruotato(sg[0] + Vector2(-4, -6), Vector2(sg[1] + 34, sg[1] + 34), sg[2], Color(0.27, 0.29, 0.32, 1.0), Color(0, 0, 0, 0), 0.0)
-	_quadrato_ruotato(sg[0], Vector2(sg[1], sg[1]), sg[2], Color(0.21, 0.22, 0.25, 1.0), Color(0.88, 0.12, 0.1), 9.0)
-	_testo(fonts["titoli"], "sgancio", sg[0] + _rot(Vector2(0, -sg[1] * 0.3), sg[2] - 45.0), 26, Color(0.95, 0.42, 0.27), sg[2] - 45.0, true)
 	var ri: Array = L["rilasciati"]
-	_quadrato_ruotato(ri[0] + Vector2(-3, -3), Vector2(ri[1] + 22, ri[1] + 22), ri[2], Color(0.27, 0.29, 0.32, 1.0), Color(0, 0, 0, 0), 0.0)
-	_quadrato_ruotato(ri[0], Vector2(ri[1], ri[1]), ri[2], Color(0.3, 0.31, 0.33, 1.0), Color(0.75, 0.76, 0.78), 3.0)
-	_testo(fonts["testo"], "Upkeep", ri[0] + Vector2(0, -8), 17, Color(0.85, 0.86, 0.88), 0.0, true, false)
-	_testo(fonts["testo"], "sganciati", ri[0] + Vector2(0, 12), 17, Color(0.85, 0.86, 0.88), 0.0, true, false)
 	# Upkeep sganciati in questo turno
 	var n := 0
 	for u in p.dg()["upkeep"]:
@@ -358,7 +305,7 @@ func colpisci(id: String) -> void:
 
 # ------------------------------------------------------------------ interazione
 func _id_sotto(pt: Vector2) -> String:
-	var m := (pt - origine) / scala
+	var m := a_tela(pt)
 	var ids := pos_attuale.keys()
 	ids.reverse()
 	for id in ids:
@@ -367,7 +314,8 @@ func _id_sotto(pt: Vector2) -> String:
 	return ""
 
 func _gui_input(e: InputEvent) -> void:
-	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+	super._gui_input(e)
+	if e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_LEFT and not era_trascinamento():
 		var id := _id_sotto(e.position)
 		if id != "":
 			pedina_cliccata.emit(id)

@@ -1,254 +1,214 @@
-## Lavagna di pianificazione della campagna (Mission Planning Blotter): turni di pianificazione, punti risorsa,
-## personale di terra, equipaggi e addestramento, aerei e Upkeep, modifiche, ricognizione, sicurezza e specialisti.
-## Tutto disegnato qui, su carta, in italiano.
+## Lavagna di pianificazione della campagna sull'immagine originale (tradotta), in due colonne affiancate:
+## segnalini sul turno di pianificazione, sulla traccia dei punti risorsa, sulle tracce dell'addestramento,
+## squadre di terra nelle caselle a cui sono dedicate, stato delle modifiche e della sicurezza.
+## Le coordinate dei segnalini sono quelle della tavola originale (5100x3300), convertite con B().
 class_name Lavagna
-extends Control
+extends Tavola
 
-const W := 1050.0
-const H := 1010.0
-const CARTA := Color(0.80, 0.75, 0.63)
-const CARTA2 := Color(0.86, 0.82, 0.72)
-const INCH := Color(0.16, 0.13, 0.09)
-const INCH2 := Color(0.38, 0.32, 0.24)
-const ROSSO := Color(0.62, 0.12, 0.1)
-const VERDE := Color(0.16, 0.38, 0.2)
-const BLU := Color(0.13, 0.27, 0.42)
+const K := 0.7
+const TAGLIO := 1480.0          # y della tavola dove comincia la seconda colonna
+const COL2 := 1285.0            # larghezza di una colonna (tavola)
+
+const TURNO := [Vector2(748, 318), Vector2(884, 318), Vector2(1019, 318), Vector2(1154, 318)]
+const BOX := {
+	"requisizioni": Rect2(1076, 570, 155, 153), "addestramento": Rect2(1080, 1050, 151, 151),
+	"riparazioni": Rect2(300, 2217, 149, 150), "radio": Rect2(533, 2163, 171, 218), "altimetro": Rect2(780, 2163, 171, 218),
+	"cabina": Rect2(1023, 2163, 170, 218), "aerei": Rect2(1071, 2590, 146, 151), "ordigni": Rect2(1071, 2759, 146, 147),
+}
+const SEZIONI := {
+	"p_req": Rect2(100, 548, 1140, 334), "p_sic": Rect2(100, 884, 1140, 138), "p_add": Rect2(100, 1030, 1140, 1016),
+	"p_mod": Rect2(100, 2056, 1140, 340), "p_rec": Rect2(100, 2404, 1140, 98), "p_lancio": Rect2(100, 2508, 1140, 70),
+	"f_aerei": Rect2(100, 2578, 1140, 176), "f_ordigni": Rect2(100, 2754, 1140, 168), "f_equip": Rect2(100, 2922, 1140, 166),
+	"f_brief": Rect2(100, 3088, 1140, 56), "f_sortita": Rect2(100, 3144, 1140, 74),
+}
+const SICUREZZA := {"tirpitz": Rect2(425, 908, 92, 92), "polizia": Rect2(592, 908, 94, 92), "57sqn": Rect2(758, 908, 94, 92)}
+const EQUIP := {"recluta": Rect2(473, 793, 70, 66), "esperto": Rect2(561, 793, 72, 66), "veterano": Rect2(651, 793, 72, 66)}
+const COLORE_EQUIP := {"recluta": Color(0.36, 0.55, 0.3), "esperto": Color(0.3, 0.45, 0.62), "veterano": Color(0.62, 0.26, 0.2)}
 
 var p: PartitaCampagna
-var fonts := {}
-var scala := 1.0
-var origine := Vector2.ZERO
-var tex := {}
+
+func _init() -> void:
+	W = COL2 * 2 * K
+	H = 1810.0 * K
 
 func imposta(partita: PartitaCampagna, f: Dictionary) -> void:
 	p = partita
 	fonts = f
 	queue_redraw()
 
-func _tex(nome: String) -> Texture2D:
-	if not tex.has(nome):
-		var path := "res://assets/" + nome
-		tex[nome] = load(path) if ResourceLoader.exists(path) else null
-	return tex[nome]
+static func B(v: Vector2) -> Vector2:
+	if v.y < TAGLIO:
+		return (v - Vector2(60, 20)) * K
+	return (v - Vector2(60, 20) - Vector2(0, TAGLIO - 20) + Vector2(COL2, 0)) * K
 
-func _t(f: String, testo: String, pos: Vector2, sz: int, col := INCH, w := -1.0, al := HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	draw_string(fonts[f], pos, testo, al, w, sz, col)
+static func BR(r: Rect2) -> Rect2:
+	return Rect2(B(r.position), r.size * K)
 
-func _riquadro(r: Rect2, titolo: String) -> void:
-	draw_rect(r, CARTA2)
-	draw_rect(r, INCH2, false, 1.5)
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 26)), Color(0.28, 0.24, 0.18))
-	_t("titoli", titolo, r.position + Vector2(10, 19), 16, Color(0.95, 0.9, 0.8))
+## Parte della lavagna da inquadrare nella fase corrente.
+func vista_fase() -> Rect2:
+	var f: String = p.s["fase"]
+	if f in ["p_req", "p_sic"]:
+		return Rect2(0, 0, COL2 * K, 1460 * K)
+	return Rect2(COL2 * K, 0, COL2 * K, 1810 * K)
 
 func _draw() -> void:
 	if p == null or not p.s.get("campagna", false):
 		return
-	scala = minf(size.x / W, size.y / H)
-	origine = (size - Vector2(W, H) * scala) * 0.5
-	draw_set_transform(origine, 0.0, Vector2(scala, scala))
-	draw_rect(Rect2(0, 0, W, H), CARTA)
-	for i in 40:
-		draw_line(Vector2(0, 30 + i * 26), Vector2(W, 30 + i * 26), Color(0.7, 0.64, 0.52, 0.35), 1.0)
-	draw_rect(Rect2(4, 4, W - 8, H - 8), INCH2, false, 2.0)
-	_testata(Rect2(12, 12, W - 24, 118))
-	_squadre(Rect2(12, 140, 470, 300))
-	_equipaggi(Rect2(492, 140, 546, 190))
-	_modifiche(Rect2(492, 340, 546, 100))
-	_aerei(Rect2(12, 450, 1026, 130))
-	_ricognizione(Rect2(12, 590, 640, 410))
-	_sicurezza(Rect2(662, 590, 376, 200))
-	_specialisti(Rect2(662, 800, 376, 200))
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	inizia()
+	draw_rect(Rect2(0, 0, W, H), Color(0.09, 0.085, 0.08))
+	draw_texture_rect(_tex("mappe/lavagna.jpg"), Rect2(0, 0, W, H), false)
+	# la colonna non inquadrata resta in penombra
+	var v := vista_fase()
+	var altra := Rect2(0, 0, COL2 * K, H) if v.position.x > 0 else Rect2(COL2 * K, 0, COL2 * K, H)
+	draw_rect(altra, Color(0, 0, 0, 0.45))
+	_sezione()
+	_turno_e_rp()
+	_squadre()
+	_requisiti()
+	_sicurezza()
+	_addestramento()
+	_modifiche()
+	finisci()
 
-func _testata(r: Rect2) -> void:
-	_t("titoli", "LAVAGNA DI PIANIFICAZIONE", r.position + Vector2(4, 30), 25)
-	_t("serif", "617° Squadron, RAF Scampton · Operazione Chastise", r.position + Vector2(6, 56), 19, INCH2)
-	var piano: int = int(p.s["piano"])
-	var x0 := 520.0
-	for t in range(1, 5):
-		var c := Rect2(x0 + (t - 1) * 124, r.position.y, 118, 66)
-		var att := t == piano
-		draw_rect(c, Color(0.95, 0.85, 0.55) if att else (Color(0.7, 0.65, 0.54) if t < piano else CARTA2))
-		draw_rect(c, ROSSO if att else INCH2, false, 3.0 if att else 1.0)
-		_t("titoli", "TURNO %d" % t, c.position + Vector2(0, 22), 16, INCH, c.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-		var luna: bool = t % 2 == 1
-		var cc := c.position + Vector2(20, 46)
-		if luna:
-			draw_circle(cc, 10, Color(0.98, 0.95, 0.8))
-			draw_arc(cc, 10, 0, TAU, 24, INCH2, 1.0)
+func _sezione() -> void:
+	var f: String = p.s["fase"]
+	if not SEZIONI.has(f):
+		return
+	var r := BR(SEZIONI[f])
+	var a := 0.55 + 0.45 * sin(Time.get_ticks_msec() / 260.0)
+	draw_rect(r.grow(2), Color(1, 0.7, 0.2, a), false, 5.0)
+	queue_redraw()
+
+func _turno_e_rp() -> void:
+	var beige := Color(0.86, 0.81, 0.68)
+	var inch := Color(0.2, 0.15, 0.1)
+	var t: int = clampi(int(p.s["piano"]), 1, 4)
+	segnalino(B(TURNO[t - 1]), 54, ["TURNO", "PIANIF."], beige, inch)
+	# traccia 0-9: RP (unità e decine), richieste, addestramenti extra, rischio
+	var rp: int = int(p.s["rp"])
+	var su := []
+	su.append([rp % 10, ["RP"], Color(0.95, 0.85, 0.45), inch])
+	su.append([(rp / 10) % 10, ["RP x10"] if rp < 100 else ["RP x10", "+100"], Color(0.95, 0.7, 0.3), inch])
+	if int(p.s["richieste"]) > 0:
+		su.append([mini(int(p.s["richieste"]), 9), ["RICHIESTE"], Color(0.8, 0.8, 0.82), inch])
+	if int(p.s["giri_extra"]) > 0:
+		su.append([mini(int(p.s["giri_extra"]), 9), ["EXTRA"], Color(0.7, 0.85, 0.7), inch])
+	if p.s["fase"] == "f_sortita" or p.s["fase"].begins_with("v_") or p.s["fase"] == "concluso":
+		var rv: int = int(p.s["rischio"])
+		su.append([rv % 10, ["RISCHIO"] if rv < 10 else ["RISCHIO", "+10"], Color(0.82, 0.22, 0.16), Color.WHITE])
+	var per := {}
+	for m in su:
+		var k: int = m[0]
+		var n: int = per.get(k, 0)
+		per[k] = n + 1
+		var c := B(Vector2(168 + 101.2 * k, 448 + n * 34))
+		segnalino(c + Vector2((n % 2) * 8, 0), 52, m[1], m[2], m[3])
+
+func _squadra(q: Dictionary, c: Vector2, lato: float) -> void:
+	var d := p.dati_squadra(q["id"])
+	var stanca: bool = q.get("stanca", false)
+	var v: Array = d["stanco"] if stanca else d["fresco"]
+	var nome: String = String(d["nome"]).replace("Squadra ", "")
+	segnalino(c, lato, [nome, "%d·%d·%d" % v], Color(0.62, 0.55, 0.45) if stanca else Color(0.9, 0.84, 0.7), Color(0.22, 0.14, 0.08))
+
+func _squadre() -> void:
+	var per_box := {}
+	var libere := []
+	for q in p.s["squadre"]:
+		var b: String = q.get("dedicata", "")
+		if b != "" and BOX.has(b):
+			per_box[b] = per_box.get(b, []) + [q]
 		else:
-			draw_circle(cc, 10, Color(0.15, 0.15, 0.2))
-		_t("testo", ["", "mar.-apr.", "aprile", "maggio", "maggio"][t], c.position + Vector2(36, 44), 13, INCH2)
-		_t("testo", "luna" if luna else "senza luna", c.position + Vector2(36, 59), 13, INCH2)
-	_t("titoli", "PUNTI RISORSA", Vector2(x0, r.position.y + 92), 16, INCH2)
-	_t("macchina", "%d RP" % int(p.s["rp"]), Vector2(x0 + 150, r.position.y + 96), 30, ROSSO)
-	_t("testo", "richieste di RP: %d · addestr. extra: %d" % [int(p.s["richieste"]), int(p.s["giri_extra"])], Vector2(x0 + 260, r.position.y + 92), 14, INCH2)
-	_t("testo", "Fase: " + _fase(), r.position + Vector2(6, 86), 16, INCH)
-	if p.s["fase"] == "f_sortita":
-		var rr := Dati.rischio(int(p.s["rischio"]))
-		_t("testo", "Rischio per la sicurezza: %d (%s)" % [int(p.s["rischio"]), rr[1]], r.position + Vector2(6, 106), 15, ROSSO)
+			libere.append(q)
+	for b in per_box:
+		var r := BR(BOX[b])
+		var qs: Array = per_box[b]
+		for i in qs.size():
+			var lato := 50.0
+			var c := r.position + Vector2(r.size.x - lato * 0.5 - 4 - (i % 2) * (lato + 4), lato * 0.5 + 4 + (i / 2) * (lato + 4))
+			_squadra(qs[i], c, lato)
+	# squadre libere sopra le illustrazioni delle squadre di terra
+	var base := BR(Rect2(109, 767, 314, 92))
+	for i in libere.size():
+		var lato := 50.0
+		_squadra(libere[i], base.position + Vector2(lato * 0.5 + i * (lato + 3), base.size.y * 0.5), lato)
 
-func _fase() -> String:
-	return {"p_req": "requisizioni", "p_sic": "sicurezza", "p_add": "addestramento", "p_mod": "modifiche", "p_rec": "ricognizione",
-		"p_lancio": "decidere il lancio", "f_aerei": "controllo degli aerei", "f_ordigni": "controllo degli Upkeep", "f_equip": "controllo degli equipaggi",
-		"f_brief": "briefing", "f_sortita": "sortita e onde"}.get(p.s["fase"], "raid in corso")
+func _badge(c: Vector2, t: String, col := Color(0.95, 0.85, 0.45)) -> void:
+	var f: Font = fonts["grassetto"]
+	var sz := 22
+	var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x + 12
+	var r := Rect2(c - Vector2(w * 0.5, 14), Vector2(w, 28))
+	draw_rect(Rect2(r.position + Vector2(2, 2), r.size), Color(0, 0, 0, 0.5))
+	draw_rect(r, col)
+	draw_rect(r, Color(0.2, 0.15, 0.1), false, 1.5)
+	draw_string(f, r.position + Vector2(0, 21), t, HORIZONTAL_ALIGNMENT_CENTER, w, sz, Color(0.15, 0.1, 0.06))
 
-func _squadre(r: Rect2) -> void:
-	_riquadro(r, "PERSONALE DI TERRA")
-	var i := 0
-	for q in Dati.SQUADRE:
-		var c := Rect2(r.position + Vector2(8 + (i % 2) * 229, 34 + (i / 2) * 88), Vector2(223, 82))
-		var mia := p.squadra(q["id"])
-		var presente := not mia.is_empty()
-		draw_rect(c, Color(0.93, 0.9, 0.82) if presente else Color(0.74, 0.7, 0.6))
-		draw_rect(c, INCH2, false, 1.0)
-		_t("grassetto", q["nome"], c.position + Vector2(8, 19), 15, INCH if presente else INCH2)
-		if not presente:
-			_t("testo", "da requisire: %d RP" % int(q["costo"]), c.position + Vector2(8, 40), 14, INCH2)
-			_t("testo", "maneggio %d · erk %d · sortita %d" % q["fresco"], c.position + Vector2(8, 60), 13, INCH2)
-		else:
-			var stanca: bool = mia.get("stanca", false)
-			var v: Array = q["stanco"] if stanca else q["fresco"]
-			_t("testo", "maneggio %d · erk %d · sortita %d" % v, c.position + Vector2(8, 40), 14, INCH)
-			_t("grassetto", "affaticata" if stanca else "fresca", c.position + Vector2(8, 60), 13, ROSSO if stanca else VERDE)
-			var ded: String = mia.get("dedicata", "")
-			_t("testo", ("a: " + p._min(PartitaCampagna.BOX.get(ded, ded))) if ded != "" else "libera", c.position + Vector2(90, 60), 13, BLU, 128)
-		i += 1
-
-func _equipaggi(r: Rect2) -> void:
-	_riquadro(r, "EQUIPAGGI E ADDESTRAMENTO")
-	var col := [130.0, 210.0, 300.0, 400.0, 480.0]
-	var y := r.position.y + 50
-	var tit := ["equipaggi", "navigazione", "quota e vel.", "puntamento", ""]
-	for k in 4:
-		_t("grassetto", tit[k], Vector2(r.position.x + col[k] - 30, y), 13, INCH2, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	var tot_q := 0
-	for e in ["recluta", "esperto", "veterano"]:
-		y += 30
-		_t("grassetto", PartitaCampagna.PLURALE[e].capitalize(), Vector2(r.position.x + 10, y), 16)
-		var n: int = int(p.s["equipaggi"][e])
-		_t("macchina", str(n), Vector2(r.position.x + col[0] - 30, y), 20, INCH, 100, HORIZONTAL_ALIGNMENT_CENTER)
-		var k := 1
-		for c in ["nav", "quota", "bomba"]:
-			var v: int = int(p.s["addestramento"][e][c])
-			if c == "quota":
-				tot_q += v
-			_t("macchina", str(v), Vector2(r.position.x + col[k] - 30, y), 20, INCH if n > 0 else INCH2, 100, HORIZONTAL_ALIGNMENT_CENTER)
-			k += 1
+func _requisiti() -> void:
+	for e in EQUIP:
+		var r := BR(EQUIP[e])
+		_badge(r.get_center() + Vector2(0, -r.size.y * 0.55), "%d" % int(p.s["equipaggi"][e]))
 		if p.s["riposati"][e]:
-			_t("testo", "riposati", Vector2(r.position.x + col[4] - 10, y), 13, VERDE)
-	y += 32
-	var w := "Bonus Wallis: OTTENUTO" if p.s.get("bonus_wallis", false) and not p.s["quarantena"] else "Bonus Wallis: quota e velocità %d su 12" % tot_q
-	_t("testo", w, Vector2(r.position.x + 10, y), 14, VERDE if p.s.get("bonus_wallis", false) else INCH2)
-
-func _modifiche(r: Rect2) -> void:
-	_riquadro(r, "MODIFICHE AI LANCASTER")
-	var voci := [["Radio VHF", p.s["vhf"], "un 6"], ["Luci Aldis (altimetro)", p.s["aldis"], "%d/2 sei" % mini(int(p.s["sei"]["altimetro"]), 2)],
-		["Mirino Dann (cabina)", p.s["dann"], "%d/2 sei" % mini(int(p.s["sei"]["cabina"]), 2)]]
-	var i := 0
-	for v in voci:
-		var c := Rect2(r.position + Vector2(8 + i * 178, 34), Vector2(172, 58))
-		draw_rect(c, Color(0.8, 0.9, 0.78) if v[1] else Color(0.93, 0.9, 0.82))
-		draw_rect(c, VERDE if v[1] else INCH2, false, 2.0 if v[1] else 1.0)
-		_t("grassetto", v[0], c.position + Vector2(8, 20), 14, INCH, 160)
-		_t("testo", "installata" if v[1] else "in lavorazione: " + v[2], c.position + Vector2(8, 44), 13, VERDE if v[1] else INCH2, 160)
-		i += 1
-
-func _aerei(r: Rect2) -> void:
-	_riquadro(r, "AEREI E UPKEEP")
+			_badge(r.get_center() + Vector2(0, r.size.y * 0.75), "riposo", Color(0.7, 0.85, 0.7))
 	var integri: int = p.s["aerei"].filter(func(a): return int(a["danni"]) == 0).size()
-	_t("testo", "Lancaster: %d (%d integri, %d danneggiati) · Upkeep in deposito: %d · ancora da requisire: %d Lancaster" % [p.s["aerei"].size(), integri, p.s["aerei"].size() - integri, p.s["upkeep_scorta"].size(), p.s["aerei_liberi"].size()], r.position + Vector2(10, 46), 15)
-	var x := r.position.x + 10
-	for a in p.s["aerei"]:
-		var t := _tex("pedine/%s_f.png" % a["id"])
-		var c := Rect2(x, r.position.y + 58, 50, 50)
-		if t:
-			draw_texture_rect(t, c, false, Color(1, 1, 1) if int(a["danni"]) == 0 and not a.get("fermo", false) else Color(0.6, 0.45, 0.4))
-		if int(a["danni"]) > 0:
-			draw_rect(Rect2(c.position + Vector2(0, 40), Vector2(50, 10)), ROSSO)
-		_t("testo", a["id"].substr(3), c.position + Vector2(0, 66), 12, INCH2, 50, HORIZONTAL_ALIGNMENT_CENTER)
-		x += 53
+	var danneggiati: int = p.s["aerei"].size() - integri
+	var rl := BR(Rect2(797, 770, 96, 89))
+	_badge(rl.get_center() + Vector2(0, -rl.size.y * 0.62), "%d" % integri + (" + %d danneggiati" % danneggiati if danneggiati > 0 else ""))
+	var ru := BR(Rect2(949, 799, 67, 60))
+	_badge(ru.get_center() + Vector2(0, -ru.size.y * 0.75), "%d" % p.s["upkeep_scorta"].size())
 
-func _ricognizione(r: Rect2) -> void:
-	_riquadro(r, "RICOGNIZIONE FOTOGRAFICA")
-	var y := r.position.y + 50
-	var i := 0
-	for z in ["costa_olandese", "ruhr", "weser"]:
-		var c := Rect2(r.position + Vector2(10 + i * 208, 34), Vector2(200, 46))
-		draw_rect(c, Color(0.93, 0.9, 0.82))
-		draw_rect(c, INCH2, false, 1.0)
-		_t("grassetto", Dati.NOME_ZONA[z], c.position + Vector2(8, 18), 14)
-		var lv: int = int(p.s["recon_zone"][z])
-		for k in 4:
-			var b := Rect2(c.position + Vector2(8 + k * 26, 24), Vector2(22, 18))
-			draw_rect(b, ROSSO if k == lv else Color(0.82, 0.78, 0.68))
-			_t("grassetto", str(k), b.position + Vector2(0, 14), 12, Color.WHITE if k == lv else INCH2, 22, HORIZONTAL_ALIGNMENT_CENTER)
-		i += 1
-	y = r.position.y + 106
-	var col := [10.0, 120.0, 160.0, 250.0, 330.0, 410.0, 490.0]
-	var tit := ["diga", "rv", "ricognizione", "contraerea", "fotoel.", "palloni", "acqua"]
-	for k in tit.size():
-		_t("grassetto", tit[k], Vector2(r.position.x + col[k], y), 13, INCH2)
-	for d in ["mohne", "eder", "sorpe", "ennepe", "lister", "diemel", "bever", "henne"]:
-		y += 34
-		var x: Dictionary = p.s["dighe"][d]
-		draw_line(Vector2(r.position.x + 6, y + 9), Vector2(r.end.x - 6, y + 9), Color(0.6, 0.55, 0.45, 0.6), 1.0)
-		_t("grassetto", Dati.DIGHE[d]["nome"], Vector2(r.position.x + col[0], y), 16)
-		_t("macchina", str(int(Dati.DIGHE[d]["rv"])), Vector2(r.position.x + col[1], y), 17)
-		var rec: int = int(x["recon"])
-		for k in 4:
-			var b := Rect2(Vector2(r.position.x + col[2] + k * 19, y - 14), Vector2(17, 18))
-			var pieno := k < rec
-			draw_rect(b, BLU if pieno else Color(0.86, 0.82, 0.72))
-			draw_rect(b, INCH2, false, 1.0)
-			var ic: String = Dati.ICONE[d][k + 1]
-			var ci := Color.WHITE if pieno else INCH
-			if ic == "o":
-				draw_arc(b.get_center(), 4.5, 0, TAU, 14, ci, 1.6)
-			elif ic == "r":
-				draw_colored_polygon(PackedVector2Array([b.get_center() + Vector2(0, -6), b.get_center() + Vector2(5, 0), b.get_center() + Vector2(0, 6), b.get_center() + Vector2(-5, 0)]), ci)
-		if x.get("vista", false):
-			_t("macchina", str(int(x["flak"])), Vector2(r.position.x + col[3] + 20, y), 17)
-			_t("macchina", str(int(x["fari"])), Vector2(r.position.x + col[4] + 14, y), 17)
-			_t("macchina", str(int(x["palloni"])), Vector2(r.position.x + col[5] + 14, y), 17)
-			_t("testo", Dati.ACQUA[int(x["acqua"])], Vector2(r.position.x + col[6], y), 14)
-		else:
-			_t("testo", "mai fotografata", Vector2(r.position.x + col[3], y), 14, INCH2)
-
-func _sicurezza(r: Rect2) -> void:
-	_riquadro(r, "SICUREZZA")
-	var y := r.position.y + 50
-	if p.s["sicurezza"].is_empty():
-		_t("testo", "Nessuna misura di sicurezza in gioco.", Vector2(r.position.x + 10, y), 14, INCH2)
-		y += 22
+func _sicurezza() -> void:
 	for m in p.s["sicurezza"]:
-		var nome: String = PartitaCampagna.GIRATI[m["id"]][0] if m["girato"] else PartitaCampagna.SEGNALINI_SIC[m["id"]][0]
-		_t("grassetto", nome, Vector2(r.position.x + 10, y), 15, BLU)
-		_t("testo", "turno %d%s" % [int(m["turno"]), ", girato" if m["girato"] else ""], Vector2(r.position.x + 250, y), 13, INCH2)
-		y += 24
-	if p.s["quarantena"]:
-		_t("grassetto", "Scampton in quarantena", Vector2(r.position.x + 10, y), 15, ROSSO)
-		y += 24
+		var r := BR(SICUREZZA[m["id"]])
+		var nome: String = PartitaCampagna.GIRATI[m["id"]][0] if m["girato"] else "IN GIOCO"
+		var col := Color(0.82, 0.22, 0.16) if m["girato"] else Color(0.3, 0.55, 0.3)
+		var f: Font = fonts["grassetto"]
+		var sz := 15
+		while sz > 8 and f.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > r.size.x + 20:
+			sz -= 1
+		var q := Rect2(r.position + Vector2(-10, r.size.y * 0.38), Vector2(r.size.x + 20, 22))
+		draw_rect(q, col)
+		draw_string(f, q.position + Vector2(0, 16), nome, HORIZONTAL_ALIGNMENT_CENTER, q.size.x, sz, Color.WHITE)
 	if p.s["spia"]:
-		_t("grassetto", "Una spia si aggira per la base!", Vector2(r.position.x + 10, y), 15, ROSSO)
-		y += 24
-	_t("testo", "Il rischio si calcola al briefing.", Vector2(r.position.x + 10, r.end.y - 12), 13, INCH2)
+		segnalino(B(Vector2(1000, 950)), 62, ["SPIA"], Color(0.15, 0.15, 0.16), Color(0.95, 0.3, 0.25), -8)
+	if p.s["quarantena"]:
+		segnalino(B(Vector2(1180, 975)), 62, ["QUARAN-", "TENA"], Color(0.82, 0.22, 0.16), Color.WHITE, 6)
 
-func _specialisti(r: Rect2) -> void:
-	_riquadro(r, "SPECIALISTI")
-	var y := r.position.y + 50
-	var col := 0
-	for e in p.s["elite"]:
-		var t := ""
-		match e:
-			"spia": continue
-			"jinx": t = "Il cane di Gibson (mascotte)"
-			"armiere": t = "Armiere esperto"
-			_: t = "%s, %s" % [Dati.SPECIALISTI[e]["nome"], Dati.RUOLI[Dati.SPECIALISTI[e]["ruolo"]][0].to_lower()]
-		_t("testo", t, Vector2(r.position.x + 10 + col * 182, y), 14, INCH, 176)
-		col += 1
-		if col == 2:
-			col = 0
-			y += 22
-	if p.s["elite"].filter(func(x): return x != "spia").is_empty():
-		_t("testo", "Ogni sei equipaggi e con i buoni addestramenti arriva uno specialista.", Vector2(r.position.x + 10, y), 13, INCH2, 356)
+func _addestramento() -> void:
+	var y := {"nav": 1590.0, "quota": 1792.0, "bomba": 1987.0}
+	var mx := {"nav": 7, "quota": 7, "bomba": 8}
+	var ordine := ["recluta", "esperto", "veterano"]
+	for c in y:
+		var per := {}
+		for i in ordine.size():
+			var e: String = ordine[i]
+			var lv: int = clampi(int(p.s["addestramento"][e][c]), 0, mx[c])
+			var n: int = per.get(lv, 0)
+			per[lv] = n + 1
+			var pos := B(Vector2(213 + 101.3 * lv, y[c] - 22 + n * 24))
+			var nome: String = {"recluta": "RECL.", "esperto": "ESP.", "veterano": "VET."}[e]
+			var alpha := 1.0 if int(p.s["equipaggi"][e]) > 0 else 0.45
+			var col: Color = COLORE_EQUIP[e]
+			col.a = alpha
+			segnalino(pos + Vector2((n - 1) * 6, 0), 40, [nome], col, Color(1, 1, 1, alpha))
+	var wr := BR(Rect2(991, 1513, 233, 364))
+	if p.s.get("bonus_wallis", false) and not p.s["quarantena"]:
+		segnalino(wr.get_center() + Vector2(0, 60), 86, ["BONUS", "OTTENUTO"], Color(0.3, 0.55, 0.3), Color.WHITE, -10)
+	else:
+		var tot := 0
+		for e in ordine:
+			tot += int(p.s["addestramento"][e]["quota"])
+		_badge(wr.position + Vector2(wr.size.x * 0.5, wr.size.y + 18), "quota e velocità: %d su 12" % tot, Color(0.9, 0.84, 0.7))
+
+func _modifiche() -> void:
+	var stati := {"radio": [p.s["vhf"], "un 6"], "altimetro": [p.s["aldis"], "%d di 2 sei" % mini(int(p.s["sei"]["altimetro"]), 2)],
+		"cabina": [p.s["dann"], "%d di 2 sei" % mini(int(p.s["sei"]["cabina"]), 2)]}
+	for b in stati:
+		var r := BR(BOX[b])
+		if stati[b][0]:
+			segnalino(r.get_center() + Vector2(0, 10), 70, ["FATTA"], Color(0.3, 0.55, 0.3), Color.WHITE, -12)
+		else:
+			_badge(r.position + Vector2(r.size.x * 0.5, r.size.y + 14), stati[b][1], Color(0.9, 0.84, 0.7))
+	var danneggiati: int = p.s["aerei"].filter(func(a): return int(a["danni"]) > 0).size()
+	if danneggiati > 0:
+		var rr := BR(BOX["riparazioni"])
+		_badge(rr.position + Vector2(rr.size.x * 0.5, rr.size.y + 14), "%d da riparare" % danneggiati, Color(0.95, 0.75, 0.65))

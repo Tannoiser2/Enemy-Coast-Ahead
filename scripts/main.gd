@@ -26,10 +26,13 @@ var ui: Control
 var mappa: MappaBersaglio
 var mappa_volo: MappaVolo
 var lavagna: Lavagna
-var vista_lavagna := true
-var bottone_vista: Button
-var vista_volo := false
-var ultima_fase_volo := false
+var vista := "bersaglio"          # vista mostrata: lavagna, volo o bersaglio
+var categoria := ""                # vista suggerita dalla fase (cambia vista quando cambia questa)
+var schede := {}                   # pulsanti delle viste
+var stato_lbl: Label
+var tavolo: Control
+var colonna_dx: VBoxContainer
+var schede_basso: TabContainer
 var scheda_diga: Control
 var traccia: Control
 var squadriglia: VBoxContainer
@@ -256,108 +259,114 @@ func _avvia() -> void:
 	_costruisci_tavolo()
 	_aggiorna()
 
+const COLONNA := 450.0
+
 func _costruisci_tavolo() -> void:
 	_svuota()
 	ui = Control.new()
 	ui.set_anchors_preset(Control.PRESET_FULL_RECT)
 	radice.add_child(ui)
-	# barra in alto
+	# ---------------------------------------------------------------- barra in alto
+	var fondo_barra := ColorRect.new()
+	fondo_barra.color = Color(0.035, 0.04, 0.05)
+	fondo_barra.anchor_right = 1.0
+	fondo_barra.offset_bottom = 50
+	ui.add_child(fondo_barra)
 	var barra := HBoxContainer.new()
-	barra.position = Vector2(12, 8)
-	barra.size = Vector2(1416, 40)
 	barra.anchor_right = 1.0
-	barra.offset_right = -12
+	barra.offset_left = 12
+	barra.offset_right = -10
+	barra.offset_top = 6
+	barra.offset_bottom = 44
 	barra.add_theme_constant_override("separation", 10)
 	ui.add_child(barra)
-	barra.add_child(_etichetta("ENEMY COAST AHEAD", "titoli", 26, Color(0.95, 0.95, 0.95)))
-	titolo_scen = _etichetta("", "serif", 21, C_GRIGIO)
+	barra.add_child(_etichetta("ENEMY COAST AHEAD", "titoli", 22, Color(0.95, 0.95, 0.95)))
+	titolo_scen = _etichetta("", "serif", 18, C_GRIGIO)
 	titolo_scen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	titolo_scen.clip_text = true
+	titolo_scen.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	barra.add_child(titolo_scen)
+	stato_lbl = _etichetta("", "grassetto", 17, C_ORO)
+	barra.add_child(stato_lbl)
+	var sep := Control.new()
+	sep.custom_minimum_size = Vector2(6, 0)
+	barra.add_child(sep)
+	schede.clear()
+	var voci := []
+	if g.s.get("campagna", false):
+		voci.append(["lavagna", "Lavagna"])
 	if is_volo():
-		bottone_vista = _bottone("Mappa del bersaglio", _cambia_vista, 15)
-		barra.add_child(bottone_vista)
+		voci.append(["volo", "Mappa di volo"])
+	voci.append(["bersaglio", "Bersaglio"])
+	if voci.size() > 1:
+		for v in voci:
+			var b := _bottone(v[1], func(): _mostra_vista(v[0], true), 15)
+			b.toggle_mode = true
+			b.tooltip_text = "Rotella del mouse: ingrandisci. Tasto destro o trascinamento: sposta. Doppio clic: vista intera."
+			schede[v[0]] = b
+			barra.add_child(b)
 	barra.add_child(_bottone("Aiuto", func(): _aiuto(), 15))
 	barra.add_child(_bottone("Salva online", _salva_online, 15))
 	barra.add_child(_bottone("Menu", _menu, 15))
-	# mappa
+	# ---------------------------------------------------------------- tavolo (mappe) a sinistra
+	tavolo = Control.new()
+	tavolo.anchor_right = 1.0
+	tavolo.anchor_bottom = 1.0
+	tavolo.offset_left = 6
+	tavolo.offset_top = 54
+	tavolo.offset_right = -(COLONNA + 12)
+	tavolo.offset_bottom = -6
+	ui.add_child(tavolo)
 	mappa = MappaBersaglio.new()
-	mappa.position = Vector2(8, 54)
-	mappa.size = Vector2(850, 838)
-	mappa.anchor_bottom = 1.0
-	mappa.offset_bottom = -8
-	ui.add_child(mappa)
+	mappa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tavolo.add_child(mappa)
 	mappa.imposta(g, fonts)
 	mappa.pedina_cliccata.connect(_clic_pedina)
+	mappa_volo = null
 	if is_volo():
 		mappa_volo = MappaVolo.new()
-		mappa_volo.position = mappa.position
-		mappa_volo.size = mappa.size
-		mappa_volo.anchor_bottom = 1.0
-		mappa_volo.offset_bottom = -8
-		ui.add_child(mappa_volo)
+		mappa_volo.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tavolo.add_child(mappa_volo)
 		mappa_volo.imposta(g, fonts)
 		mappa_volo.pedina_cliccata.connect(_clic_pedina)
-		vista_volo = fase_volo()
-		ultima_fase_volo = vista_volo
-		_applica_vista()
-	else:
-		mappa_volo = null
+	lavagna = null
 	if g.s.get("campagna", false):
 		lavagna = Lavagna.new()
-		vista_lavagna = true
-		lavagna.position = mappa.position
-		lavagna.size = mappa.size
-		lavagna.anchor_bottom = 1.0
-		lavagna.offset_bottom = -8
-		ui.add_child(lavagna)
+		lavagna.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tavolo.add_child(lavagna)
 		lavagna.imposta(g, fonts)
-		_applica_vista()
-	else:
-		lavagna = null
-	# colonna destra
+	# ---------------------------------------------------------------- colonna destra
 	var dx := VBoxContainer.new()
-	dx.position = Vector2(866, 54)
-	dx.size = Vector2(566, 838)
+	colonna_dx = dx
+	dx.anchor_left = 1.0
 	dx.anchor_right = 1.0
 	dx.anchor_bottom = 1.0
-	dx.offset_right = -8
-	dx.offset_bottom = -8
+	dx.offset_left = -(COLONNA + 6)
+	dx.offset_right = -6
+	dx.offset_top = 54
+	dx.offset_bottom = -6
 	dx.add_theme_constant_override("separation", 6)
 	ui.add_child(dx)
+	# traccia originale della diga attaccata (solo sulla mappa del bersaglio)
 	scheda_diga = Control.new()
-	scheda_diga.custom_minimum_size = Vector2(0, 168)
+	scheda_diga.custom_minimum_size = Vector2(0, COLONNA * 230.0 / 740.0)
 	scheda_diga.draw.connect(_disegna_diga)
-	scheda_diga.tooltip_text = "Scheda della diga: livello dell'acqua (e capacità di danno), difese, ricognizione e attività.\nGli Upkeep a sinistra hanno colpito la diga, quelli a destra l'hanno mancata."
+	scheda_diga.tooltip_text = "Traccia della diga: danni, livello dell'acqua (che decide la capacità di danno), ricognizione, attività e contraerea.\nIn giallo gli Upkeep andati a segno (? se il danno non è ancora rivelato); a destra i mancati."
 	dx.add_child(scheda_diga)
 	traccia = Control.new()
-	traccia.custom_minimum_size = Vector2(0, 66)
+	traccia.custom_minimum_size = Vector2(0, 62)
 	traccia.draw.connect(_disegna_traccia)
 	dx.add_child(traccia)
-	var mezzo := HBoxContainer.new()
-	mezzo.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mezzo.add_theme_constant_override("separation", 6)
-	dx.add_child(mezzo)
-	# squadriglia
-	var ps := PanelContainer.new()
-	ps.custom_minimum_size = Vector2(196, 0)
-	mezzo.add_child(ps)
-	var sv := ScrollContainer.new()
-	sv.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	ps.add_child(sv)
-	squadriglia = VBoxContainer.new()
-	squadriglia.add_theme_constant_override("separation", 3)
-	squadriglia.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sv.add_child(squadriglia)
 	# decisioni
 	var pd := PanelContainer.new()
-	pd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pd.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	pd.add_theme_stylebox_override("panel", _stile(Color(0.15, 0.14, 0.12), Color(0.55, 0.45, 0.25), 1, 4))
-	mezzo.add_child(pd)
+	dx.add_child(pd)
 	var vd := VBoxContainer.new()
 	vd.add_theme_constant_override("separation", 5)
 	pd.add_child(vd)
 	titolo_scelta = _etichetta("", "titoli", 21, C_ORO)
+	titolo_scelta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vd.add_child(titolo_scelta)
 	testo_scelta = RichTextLabel.new()
 	testo_scelta.bbcode_enabled = true
@@ -378,59 +387,101 @@ func _costruisci_tavolo() -> void:
 	dadi.custom_minimum_size = Vector2(0, 74)
 	dadi.draw.connect(_disegna_dadi)
 	vd.add_child(dadi)
-	# registro
+	# diario e squadriglia in due schede
+	schede_basso = TabContainer.new()
+	schede_basso.custom_minimum_size = Vector2(0, 236)
+	dx.add_child(schede_basso)
 	var pr := PanelContainer.new()
-	pr.custom_minimum_size = Vector2(0, 190)
+	pr.name = "Diario"
 	pr.add_theme_stylebox_override("panel", _stile(Color(0.86, 0.83, 0.75), Color(0.5, 0.45, 0.35), 1, 2))
-	dx.add_child(pr)
+	schede_basso.add_child(pr)
 	registro = RichTextLabel.new()
 	registro.scroll_following = true
 	registro.add_theme_font_override("normal_font", fonts["macchina"])
 	registro.add_theme_font_size_override("normal_font_size", 14)
 	registro.add_theme_color_override("default_color", Color(0.15, 0.13, 0.1))
 	pr.add_child(registro)
+	var sv := ScrollContainer.new()
+	sv.name = "Squadriglia"
+	sv.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	schede_basso.add_child(sv)
+	squadriglia = VBoxContainer.new()
+	squadriglia.add_theme_constant_override("separation", 3)
+	squadriglia.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sv.add_child(squadriglia)
+	categoria = ""
+	_segui_fase()
+	ui.resized.connect(_adatta_colonne)
+	_adatta_colonne()
 
-func _cambia_vista() -> void:
+## La colonna di destra si allarga sugli schermi larghi (la mappa è limitata dall'altezza).
+func _adatta_colonne() -> void:
+	if ui == null or tavolo == null:
+		return
+	var col := clampf(ui.size.x * 0.3, COLONNA, 640.0)
+	tavolo.offset_right = -(col + 12)
+	colonna_dx.offset_left = -(col + 6)
+	scheda_diga.custom_minimum_size = Vector2(0, col * 230.0 / 740.0)
+
+## Vista suggerita dalla fase in corso.
+func _categoria_fase() -> String:
 	if pianificazione():
-		vista_lavagna = not vista_lavagna
-		_applica_vista()
-		return
-	vista_volo = not vista_volo
-	_applica_vista()
+		return "lavagna"
+	if fase_volo():
+		return "volo"
+	return "bersaglio"
 
-func _applica_vista() -> void:
-	if mappa_volo == null:
-		return
-	var piano := pianificazione()
-	if piano and lavagna != null:
-		lavagna.visible = vista_lavagna
-		lavagna.queue_redraw()
-		mappa_volo.visible = not vista_lavagna
-		mappa.visible = false
-		bottone_vista.text = "Mappa di volo" if vista_lavagna else "Lavagna di pianificazione"
-		mappa_volo.queue_redraw()
-		return
+func _segui_fase() -> void:
+	var c := _categoria_fase()
+	if c != categoria:
+		categoria = c
+		_mostra_vista(c, false)
+	if lavagna != null and vista == "lavagna":
+		lavagna.imposta_vista(lavagna.vista_fase())
+
+func _mostra_vista(v: String, utente: bool) -> void:
+	if v == "volo" and mappa_volo == null:
+		v = "bersaglio"
+	if v == "lavagna" and lavagna == null:
+		v = "volo" if mappa_volo != null else "bersaglio"
+	vista = v
+	mappa.visible = v == "bersaglio"
+	if mappa_volo != null:
+		mappa_volo.visible = v == "volo"
 	if lavagna != null:
-		lavagna.visible = false
-	mappa_volo.visible = vista_volo
-	mappa.visible = not vista_volo
-	bottone_vista.text = "Mappa del bersaglio" if vista_volo else "Mappa di volo"
-	mappa_volo.queue_redraw()
-	mappa.queue_redraw()
+		lavagna.visible = v == "lavagna"
+		if v == "lavagna" and not utente:
+			lavagna.imposta_vista(lavagna.vista_fase())
+	for k in schede:
+		schede[k].set_pressed_no_signal(k == v)
+	if scheda_diga != null:
+		scheda_diga.visible = v == "bersaglio"
+		traccia.visible = v == "bersaglio"
+	for c in [mappa, mappa_volo, lavagna]:
+		if c != null:
+			c.queue_redraw()
+
+func _stato_testo() -> String:
+	if pianificazione():
+		var pt: int = int(g.s["piano"])
+		return "Pianificazione · turno %d di 4 · %d RP" % [pt, int(g.s["rp"])]
+	if fase_volo():
+		var tv: int = int(g.s["turno_volo"])
+		return "Turno di volo %d · ore %s · allerta %d" % [tv, Dati.ORA_VOLO[tv], int(g.s["allerta"])]
+	if g.s["fase"] == "concluso":
+		return "Missione conclusa"
+	return "%s · turno d'attacco %d · %s" % [Dati.DIGHE[g.diga_corrente()]["nome"], int(g.s["turno"]), g.ora()]
 
 # ================================================================ aggiornamento
 func _aggiorna() -> void:
 	if g == null or ui == null:
 		return
+	_segui_fase()
 	if mappa_volo != null:
-		var fv := fase_volo()
-		if fv != ultima_fase_volo or (lavagna != null and not pianificazione() and lavagna.visible):
-			vista_volo = fv
-			ultima_fase_volo = fv
-			_applica_vista()
 		mappa_volo.queue_redraw()
-		if lavagna != null:
-			lavagna.queue_redraw()
+	if lavagna != null:
+		lavagna.queue_redraw()
+	stato_lbl.text = _stato_testo()
 	titolo_scen.text = "%s%s" % [g.nome_scenario(), " (prima partita)" if g.s["facile"] else ""]
 	# registro
 	var righe: Array = g.s["log"]
@@ -453,7 +504,6 @@ func _aggiorna() -> void:
 	eventi_visti = ev.size()
 	_squadriglia()
 	_scelte()
-	scheda_diga.visible = not pianificazione()
 	scheda_diga.queue_redraw()
 	traccia.queue_redraw()
 	dadi.queue_redraw()
@@ -557,8 +607,8 @@ func _scelte() -> void:
 		for l in g.s["lanc"]:
 			if c["id"] == l["id"] or c["id"].ends_with(":" + l["id"]) and not c["id"].begins_with("razzo") and not c["id"].begins_with("rientra"):
 				mappa.evidenzia[l["id"]] = true
-	if a["tipo"] == "sgancio" or a["tipo"] == "gettone" and a.get("sgancio", false):
-		pass
+	if mappa_volo != null:
+		mappa_volo.evidenzia = mappa.evidenzia.duplicate()
 	var aiuto := _bottone("Decidi tu (scelta automatica)", func(): _scegli(bot.scelta()), 13)
 	aiuto.modulate = Color(1, 1, 1, 0.75)
 	pannello_scelte.add_child(aiuto)
@@ -601,82 +651,15 @@ func _disegna_diga() -> void:
 	if g == null:
 		return
 	var c := scheda_diga
-	var w := c.size.x
 	var nd := g.diga_corrente()
+	var r := Rect2(Vector2.ZERO, Vector2(c.size.x, c.size.x * 230.0 / 740.0))
+	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(0.06, 0.06, 0.07))
+	MappaVolo.traccia_diga(c, nd, r, g, fonts)
 	var d := g.dg(nd)
-	var info: Dictionary = Dati.DIGHE[nd]
-	c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
-	c.draw_rect(Rect2(0, 0, w, c.size.y), C_BORDO, false, 1.0)
-	var f: Font = fonts["titoli"]
-	c.draw_string(f, Vector2(12, 28), "DIGA DELLA %s" % info["nome"].to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
-	c.draw_string(fonts["testo"], Vector2(12, 48), "zona %s · valore del bacino %d rv" % [info["zona"], int(info["rv"])], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, C_GRIGIO)
-	var stato := ""
-	if d["breccia"]:
-		stato = "BRECCIA"
-	c.draw_string(fonts["grassetto"], Vector2(w - 12 - 260, 28), "danni accertati: %d su %d" % [g.danni_diga(nd), g.capacita(nd)], HORIZONTAL_ALIGNMENT_RIGHT, 260, 17, C_ORO if not d["breccia"] else C_ROSSO)
-	if stato != "":
-		c.draw_string(fonts["titoli"], Vector2(w - 12 - 260, 50), stato, HORIZONTAL_ALIGNMENT_RIGHT, 260, 22, C_ROSSO)
-	# traccia di stato 0-4
-	var x0 := 60.0
-	var cw := (w - x0 - 62) / 5.0
-	var y0 := 62.0
-	var hh := 74.0
-	c.draw_rect(Rect2(8, y0, x0 - 12, hh), Color(0.16, 0.17, 0.19))
-	_testo_verticale(c, "danno", Vector2(8 + (x0 - 12) * 0.5, y0 + hh * 0.5))
-	c.draw_rect(Rect2(w - 58, y0, 50, hh), Color(0.16, 0.17, 0.19))
-	_testo_verticale(c, "mancati", Vector2(w - 33, y0 + hh * 0.5))
-	for i in 5:
-		var r := Rect2(x0 + i * cw, y0, cw - 3, hh)
-		c.draw_rect(r, Color(0.2, 0.21, 0.24))
-		if i >= 2:
-			c.draw_rect(Rect2(r.position, Vector2(r.size.x, 18)), Color(0.55, 0.78, 0.8, 0.85))
-			var cap: int = int(info["capacita"][i])
-			c.draw_string(fonts["grassetto"], r.position + Vector2(4, 14), "%d %s" % [cap, Dati.ACQUA[i]], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 6, 13, Color(0.1, 0.2, 0.22))
-		c.draw_string(fonts["grassetto"], r.position + Vector2(5, hh - 6), str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.75, 0.76, 0.78))
-	# segnalini sulla traccia
-	var segn := [["acqua", int(d["acqua"]), C_ACQUA, Color(0.1, 0.2, 0.22)], ["ricogn.", int(d["recon"]), Color(0.38, 0.39, 0.41), Color.WHITE]]
-	if int(d["flak"]) > 0 or int(d["flak_iniziale"]) > 0:
-		segn.append(["FLAK", int(d["flak"]), Color(0.1, 0.1, 0.1), Color.WHITE])
-	if int(d["fari"]) > 0:
-		segn.append(["fari", int(d["fari"]), Color(0.9, 0.9, 0.85), Color(0.1, 0.1, 0.1)])
-	if int(d["palloni"]) > 0:
-		segn.append(["palloni", int(d["palloni"]), Color(0.3, 0.3, 0.32), Color.WHITE])
-	var att: int = int(d["attivita"])
-	segn.append(["attività" + (" +5" if att >= 5 else ""), att % 5 if att >= 5 else att, Color(0.78, 0.76, 0.86), Color(0.15, 0.12, 0.25)])
-	var occ := {}
-	for sgn in segn:
-		var lv: int = clampi(sgn[1], 0, 4)
-		var k: int = occ.get(lv, 0)
-		occ[lv] = k + 1
-		var r := Rect2(x0 + lv * cw + 4 + (k % 2) * (cw * 0.48), y0 + 21 + (k / 2) * 20, cw * 0.46, 18)
-		c.draw_rect(r, sgn[2])
-		c.draw_string(fonts["grassetto"], r.position + Vector2(0, 14), sgn[0], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, sgn[3])
-	# Upkeep a destra (mancati) e a sinistra (colpito)
-	var colpiti := 0
-	var mancati := 0
-	for u in d["upkeep"]:
-		if u["esito"] == "colpito":
-			colpiti += 1
-		else:
-			mancati += 1
-	var yb := y0 + hh + 8
-	var xs := 12.0
-	c.draw_string(fonts["testo"], Vector2(xs, yb + 14), "Upkeep a segno:", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, C_GRIGIO)
-	xs += 104
-	for u in d["upkeep"]:
-		if u["esito"] != "colpito":
-			continue
-		var r := Rect2(xs, yb, 26, 20)
-		c.draw_rect(r, Color(0.86, 0.82, 0.72))
-		var tv := "?" if int(u["valore"]) < 0 else str(int(u["valore"]))
-		c.draw_string(fonts["grassetto"], r.position + Vector2(0, 16), tv, HORIZONTAL_ALIGNMENT_CENTER, 26, 15, C_ROSSO if tv != "?" else Color(0.2, 0.2, 0.2))
-		xs += 30
-	if colpiti == 0:
-		c.draw_string(fonts["testo"], Vector2(xs, yb + 14), "nessuno", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, C_GRIGIO)
-		xs += 60
-	c.draw_string(fonts["testo"], Vector2(xs + 20, yb + 14), "mancati: %d" % mancati, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, C_GRIGIO)
+	var k := r.size.x / 740.0
+	c.draw_string(fonts["grassetto"], Vector2(r.size.x * 0.52, 26 * k + 14), "danni %d su %d" % [g.danni_diga(nd), g.capacita(nd)], HORIZONTAL_ALIGNMENT_RIGHT, r.size.x * 0.46, 15, C_ORO if not d["breccia"] else C_ROSSO)
 	if d["caccia_vicino"]:
-		c.draw_string(fonts["grassetto"], Vector2(w - 230, yb + 14), "caccia notturno nei paraggi", HORIZONTAL_ALIGNMENT_RIGHT, 220, 14, Color(1, 0.55, 0.45))
+		c.draw_string(fonts["grassetto"], Vector2(r.size.x * 0.25, r.size.y - 4), "caccia notturno nei paraggi", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.55, 0.45))
 
 func _testo_verticale(c: Control, t: String, centro: Vector2) -> void:
 	var f: Font = fonts["testo"]
@@ -691,13 +674,13 @@ func _disegna_traccia() -> void:
 		return
 	var c := traccia
 	var w := c.size.x
-	if pianificazione():
+	if false:
 		c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
 		var pt: int = int(g.s["piano"])
 		c.draw_string(fonts["titoli"], Vector2(12, 30), "PIANIFICAZIONE · TURNO %d DI 4" % pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
 		c.draw_string(fonts["testo"], Vector2(12, 54), "%s · %d RP · %d squadre, %d equipaggi, %d Lancaster, %d Upkeep" % [Dati.LUNA[pt], int(g.s["rp"]), g.s["squadre"].size(), int(g.s["equipaggi"]["recluta"]) + int(g.s["equipaggi"]["esperto"]) + int(g.s["equipaggi"]["veterano"]), g.s["aerei"].size(), g.s["upkeep_scorta"].size()], HORIZONTAL_ALIGNMENT_LEFT, w - 20, 16, C_GRIGIO)
 		return
-	if fase_volo():
+	if false:
 		c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
 		var tv: int = int(g.s["turno_volo"])
 		c.draw_string(fonts["titoli"], Vector2(12, 30), "TURNO DI VOLO %d · ore %s" % [tv, Dati.ORA_VOLO[tv]], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
@@ -705,7 +688,7 @@ func _disegna_traccia() -> void:
 			"v_evita": "evitare i pericoli", "v_risolvi": "risolvere i pericoli", "v_acquis": "acquisizione del bersaglio", "v_bersagli": "mappe del bersaglio", "v_pulizia": "fine del turno"}
 		c.draw_string(fonts["testo"], Vector2(12, 54), "fase: %s · allerta %d" % [nomi.get(g.s["fase"], "preparazione"), int(g.s["allerta"])], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, C_GRIGIO)
 		return
-	var lato := (w - 150) / 8.0
+	var lato := (w - 120) / 8.0
 	c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
 	for i in 8:
 		var t := i + 1
@@ -713,10 +696,10 @@ func _disegna_traccia() -> void:
 		var att := t == int(g.s["turno"])
 		c.draw_rect(r, Color(0.3, 0.27, 0.18) if att else Color(0.17, 0.18, 0.2))
 		c.draw_rect(r, C_ORO if att else Color(0.35, 0.36, 0.38), false, 2.0 if att else 1.0)
-		c.draw_string(fonts["grassetto"], r.position + Vector2(0, 17), "Turno %d" % t, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, C_TESTO)
-		c.draw_string(fonts["testo"], r.position + Vector2(0, r.size.y - 6), ["", ":00", ":07", ":16", ":23", ":30", ":37", ":45", ":53"][t], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, C_GRIGIO)
+		c.draw_string(fonts["titoli"], r.position + Vector2(0, 24), str(t), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 20, C_TESTO)
+		c.draw_string(fonts["testo"], r.position + Vector2(0, r.size.y - 5), ["", ":00", ":07", ":16", ":23", ":30", ":37", ":45", ":53"][t], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, C_GRIGIO)
 		if t in [3, 5, 7]:
-			c.draw_string(fonts["testo"], r.position + Vector2(0, 32), "visibilità", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(0.55, 0.75, 0.8))
+			c.draw_string(fonts["testo"], r.position + Vector2(0, 38), "visib.", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(0.55, 0.75, 0.8))
 		var k := 0
 		for rz in g.s["razzi"]:
 			if int(rz["turno"]) == t:

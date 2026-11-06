@@ -61,11 +61,14 @@ E la campagna:
 
 ## Interfaccia
 
-- Mappa del bersaglio della diga di turno (Möhne, Eder o Sorpe) presa dal modulo Tabletop Simulator: le scritte inglesi
-  sono state cancellate (`tools/estrazione/prepara_asset.py`) e caselle, zone e testi sono ridisegnati in italiano.
-- Pedine originali dei Lancaster con i ritratti degli specialisti; gettoni, Upkeep e segnalini ridisegnati in italiano.
-- Scheda della diga (acqua e capacità, difese, ricognizione, attività, Upkeep a segno), traccia dei turni d'attacco con
-  i razzi, squadriglia, pannello delle decisioni con i dadi, registro della missione a macchina da scrivere.
+- Le mappe sono quelle originali del modulo Tabletop Simulator, nitide, con le scritte rifatte in italiano direttamente
+  sull'immagine (riconoscimento del testo, cancellazione e riscrittura con font simili: `tools/traduzione/`):
+  lavagna di pianificazione, mappa di volo, mappe del bersaglio di Möhne, Eder e Sorpe, tracce delle otto dighe.
+- Pedine originali dei Lancaster con i ritratti degli specialisti; segnalini (ricognizione, allerta, turni, squadre di
+  terra, addestramento, modifiche, sicurezza) disegnati in italiano nelle caselle vere della mappa.
+- Vista che segue la fase (lavagna, mappa di volo, mappa del bersaglio) con zoom a rotella, trascinamento e doppio clic
+  per tornare alla vista intera; a destra traccia della diga attaccata e dei turni d'attacco, decisioni con i dadi, e
+  in basso le schede Diario (a macchina da scrivere) e Squadriglia. La colonna si allarga sugli schermi larghi.
 - Le decisioni si prendono con i pulsanti, con i tasti 1-9 o cliccando le pedine evidenziate; «Decidi tu» lascia
   la scelta al computer. Aiuto completo in italiano (F1).
 - Font: Josefin Sans (titoli), Source Sans 3 (testo), Crimson Pro, Special Elite (registro). `tools/controlla_glifi.py`

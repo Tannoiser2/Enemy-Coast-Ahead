@@ -16,6 +16,10 @@ Dopo il turno 8 si ricomincia dal turno 1. Lo scenario finisce quando la diga ce
 
 [b]Comandi[/b]
 - Le decisioni compaiono nel pannello a destra: clicca il pulsante o premi il numero (1-9).
+- Le mappe sono quelle originali del gioco, con le scritte in italiano. In alto si passa fra lavagna di pianificazione, mappa di volo e mappa del bersaglio; la vista segue da sola la fase in corso.
+- Sulle mappe: rotella del mouse (o pizzico sul trackpad) per ingrandire, tasto destro o trascinamento per spostarsi, doppio clic per tornare alla vista intera. Passando sopra una pedina compare la sua scheda.
+- Sulla mappa di volo, a destra, ci sono le tracce delle otto dighe con danni, ricognizione, attività, contraerea e livello dell'acqua; sulla mappa del bersaglio la traccia della diga attaccata è in alto a destra.
+- In basso a destra, le schede Diario e Squadriglia.
 - Puoi anche cliccare sulla mappa i Lancaster evidenziati in giallo (per scegliere chi attacca e per spostarli fra i cerchi).
 - Passa col mouse su una pedina per vedere equipaggio, specialista e stato.
 - «Decidi tu» lascia la scelta al computer. F1 apre questo aiuto.

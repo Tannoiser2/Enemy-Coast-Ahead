@@ -88,8 +88,7 @@ func _scorta(zona: String, i: int) -> Vector2:
 func _griglia(r: Rect2, i: int, n: int) -> Vector2:
 	var area := Rect2(r.position + Vector2(10, 54), r.size - Vector2(20, 64))
 	var col := maxi(1, int(area.size.x / (PED + 8)))
-	if n <= 2:
-		col = maxi(col, n)
+	col = mini(col, maxi(n, 1))
 	var righe := int(ceil(float(n) / col))
 	var cw := area.size.x / col
 	var ch := minf(area.size.y / maxi(righe, 1), PED + 14)

@@ -167,6 +167,8 @@ const SPECIALISTI := {
 	"townsend":     {"nome": "Townsend",     "ruolo": "pilota_mappa"},
 	"nicholson":    {"nome": "Nicholson",    "ruolo": "navigatore"},
 	"gillespie":    {"nome": "Gillespie",    "ruolo": "bombardiere"},
+	"marriott":     {"nome": "Marriott",     "ruolo": "motorista"},
+	"chambers_r":   {"nome": "Chambers",     "ruolo": "marconista"},
 }
 const RUOLI := {
 	"comandante":       ["Comandante di stormo", "Un tiro ripetuto per partita."],
@@ -328,3 +330,49 @@ const VOLI := {
 		"forze": [],
 		"riserva": "ennepe", "radio_turno": 5, "dighe_recon": {"mohne": 2, "eder": 2, "sorpe": 2}},
 }
+
+# ================================================================== campagna (scenario 10)
+const CAMPAGNA := {
+	"titolo": "Operazione Chastise (campagna)", "ora": "marzo-maggio 1943", "turno": 1, "allerta": 0, "giri": 4,
+	"storia": "Il 617° Squadron nasce a marzo a Scampton. Hai quattro turni di pianificazione, due settimane ciascuno, per requisire uomini, aerei e Upkeep, addestrare gli equipaggi, modificare i Lancaster e fotografare le dighe senza farti scoprire. Poi, quando vuoi, il raid.",
+}
+## Personale di terra: [nome, maneggio, erk, sortita, costo] fresco e affaticato.
+const SQUADRE := [
+	{"id": "s1", "nome": "Squadra Dixon", "fresco": [10, 5, 5], "stanco": [8, 4, 3], "costo": 6},
+	{"id": "s2", "nome": "Squadra Hellier", "fresco": [10, 5, 5], "stanco": [8, 4, 3], "costo": 6},
+	{"id": "s3", "nome": "Squadra Powell", "fresco": [8, 4, 4], "stanco": [7, 3, 3], "costo": 5},
+	{"id": "s4", "nome": "Squadra Caple", "fresco": [8, 4, 4], "stanco": [7, 3, 3], "costo": 5},
+	{"id": "s5", "nome": "Squadra Munro", "fresco": [7, 4, 4], "stanco": [6, 3, 3], "costo": 3},
+	{"id": "s6", "nome": "Squadra Lloyd", "fresco": [7, 4, 4], "stanco": [6, 3, 3], "costo": 3},
+]
+const LUNA := ["", "luna (marzo-aprile)", "senza luna (aprile)", "luna (maggio)", "senza luna (maggio)"]
+const COSTO_EQUIPAGGIO := {"recluta": 1, "esperto": 2, "veterano": 3}
+## Tabella dell'addestramento: per tipo d'equipaggio e risultato (1 o meno ... 7+): [livelli, effetti]
+## Effetti: c schianto, d danno a un aereo, x ritira (pari danno, dispari schianto), R riposato, E specialista.
+const ADDESTRA := {
+	"recluta":  [[0, "c"], [0, ""], [1, ""], [1, ""], [1, ""], [1, "d"], [2, "Ed"]],
+	"esperto":  [[0, "xR"], [0, ""], [1, ""], [1, ""], [2, ""], [2, "dE"], [2, "E"]],
+	"veterano": [[1, "dR"], [1, ""], [1, ""], [2, ""], [2, ""], [2, "E"], [3, "Ed"]],
+}
+const SPECIALITA := {"nav": "Navigazione", "quota": "Quota e velocità", "bomba": "Puntamento e sgancio"}
+## Ricognizione delle dighe (P8): per difesa, risultato del dado 1-6.
+const RECON_DIFESE := {"flak": [4, 3, 2, 1, 0, 0], "fari": [2, 1, 1, 0, 0, 0], "palloni": [2, 1, 1, 0, 0, 0]}
+## Miglioramento per sorpresa (P6): incremento per dado 1-6; * = caccia nei paraggi.
+const SORPRESA_DIFESE := {"flak": [3, 2, 1, 1, 1, 0], "fari": [3, 2, 1, 1, 0, 0], "palloni": [2, 1, 1, 1, 1, 0]}
+const SORPRESA_CACCIA := {"fari": [4, 5, 6], "palloni": [6]}
+## Icone della sorpresa sulla traccia di ogni diga, per livello di ricognizione 0-4 ("" nessuna, "o" cerchio, "r" rombo).
+const ICONE := {
+	"lister": ["", "", "", "o", "r"], "diemel": ["", "", "", "o", "r"], "eder": ["", "o", "o", "r", "r"],
+	"henne": ["", "", "", "", "o"], "sorpe": ["", "", "o", "r", "r"], "bever": ["", "", "", "o", "r"],
+	"ennepe": ["", "", "", "o", "r"], "mohne": ["", "", "o", "r", "r"],
+}
+## Retro degli 11 segnalini Ricognizione: [numero semplice, rombo, cerchio, modificatore dell'acqua]
+const RETRO_RECON := [[3, 4, 2, 2], [4, 3, 4, 3], [3, 3, 4, 2], [3, 3, 4, 1], [3, 4, 3, 0], [3, 4, 2, 1], [4, 3, 5, 1],
+	[2, 5, 3, 2], [2, 5, 3, 2], [2, 6, 3, 3], [4, 3, 5, 4]]
+## Livelli di rischio per la sicurezza: [massimo, nome, allerta iniziale, modificatore della sorpresa]
+const RISCHIO := [[7, "basso", 0, 0], [9, "medio", 0, -1], [14, "alto", 1, -3], [19, "molto alto", 1, -5], [999, "pericoloso", 2, -6]]
+static func rischio(v: int) -> Array:
+	for r in RISCHIO:
+		if v <= int(r[0]):
+			return r
+	return RISCHIO[4]

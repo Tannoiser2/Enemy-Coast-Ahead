@@ -150,6 +150,10 @@ func addestramento(l: Dictionary) -> int:
 		v -= 3
 	return maxi(v, 0)
 
+## Livello di addestramento per specialità (nav, quota, bomba): negli scenari 1-9 è uguale per tutte.
+func livello(l: Dictionary, _cat: String) -> int:
+	return addestramento(l)
+
 ## Pericoli attaccati al Lancaster negli scenari di volo (lista vuota negli scenari d'attacco).
 func ha_guasto(l: Dictionary, g: String) -> bool:
 	return g in l.get("guasti", [])
@@ -461,7 +465,7 @@ func _applica_vettore(d: int) -> void:
 
 func _quanti(tipo: String) -> int:
 	var l := lanc(s["avv"]["lanc"])
-	var n := Dati.gettoni_da_livello(addestramento(l))
+	var n := Dati.gettoni_da_livello(livello(l, "quota"))
 	if tipo == "v":
 		if ruolo(l) == "motorista": n += 1
 		if ha_guasto(l, "comandi_v"): n -= 1
@@ -475,6 +479,8 @@ func _quanti(tipo: String) -> int:
 func _puo_quota() -> bool:
 	if Dati.senza_zona_vicina(s["avv"]["diga"]):
 		return true
+	if not s.get("aldis", true):
+		return false
 	return s["avv"]["luci"] and not ha_guasto(lanc(s["avv"]["lanc"]), "no_aldis")
 
 ## Passi 2 e 3: controllo della velocità e della quota (A2, A3).
@@ -831,7 +837,40 @@ func _lista(a: Array) -> String:
 	return ", ".join(a.map(func(x): return str(x)))
 
 # ================================================================ mitragliatrici (A5)
+## Palloni di sbarramento sulla mappa del bersaglio (solo campagna): zona ravvicinata e risalita.
+func _controllo_palloni() -> void:
+	var d := dg()
+	var l := lanc(s["avv"].get("lanc", ""))
+	if int(d.get("palloni", 0)) <= 0 or l.is_empty() or not in_mappa(l):
+		return
+	var x := d6()
+	if x > int(d["palloni"]):
+		_log("Palloni di sbarramento: dado %d, %s passa fra i cavi." % [x, l["id"]])
+		return
+	if l["equip"] == "veterano" or ruolo(l).begins_with("pilota"):
+		var v := d6()
+		if v == 6:
+			_log("Palloni: %s schiva il cavo all'ultimo istante (salvataggio del veterano)." % l["id"])
+			return
+	var y := d6()
+	_mostra_dadi("Palloni di sbarramento", [x, y], [], "danneggiato" if y % 2 == 0 else "abbattuto")
+	if y % 2 == 0:
+		_danneggia(l, "cavo dei palloni")
+	else:
+		_danneggia(l, "cavo dei palloni")
+		if l["pos"] != "distrutto":
+			_danneggia(l, "cavo dei palloni")
+
 func _f_mitragliatrici(dopo: String, posteriore: bool) -> void:
+	if (posteriore or s["avv"].get("zona", "") == "ravvicinata") and not s.get("palloni_fatto_" + s["fase"], false):
+		s["palloni_fatto_" + s["fase"]] = true
+		_controllo_palloni()
+		var lp := lanc(s["avv"].get("lanc", ""))
+		if lp.is_empty() or lp["pos"] == "distrutto":
+			s.erase("palloni_fatto_" + s["fase"])
+			_fine_avvicinamento()
+			s["fase"] = "giro"
+			return
 	var d := dg()
 	var cat := []
 	for c in ["flak", "fari", "palloni"]:
@@ -842,6 +881,7 @@ func _f_mitragliatrici(dopo: String, posteriore: bool) -> void:
 		s.erase("mitra_bersaglio")
 		if posteriore:
 			_fine_avvicinamento()
+		s.erase("palloni_fatto_" + s["fase"])
 		s["fase"] = dopo
 		return
 	if not s.has("mitra_bersaglio"):
@@ -878,6 +918,7 @@ func _f_mitragliatrici(dopo: String, posteriore: bool) -> void:
 		_log("Mitragliatrice %s (%s): nessun effetto su %s." % ["posteriore" if posteriore else "anteriore", _lista(dd), _nome_dif(bersaglio)])
 	if posteriore:
 		_fine_avvicinamento()
+	s.erase("palloni_fatto_" + s["fase"])
 	s["fase"] = dopo
 
 func _nome_dif(c: String) -> String:
@@ -929,9 +970,11 @@ func modificatori_sgancio() -> Array:
 		var g: String = s["avv"].get("sg_" + t, "")
 		if g != "":
 			m.append(["Gettone %s %s" % ["Quota" if t == "q" else "Velocità", Dati.gettone(g)["sg"]], int(Dati.gettone(g)["mod"])])
-	var p := Dati.mod_puntamento(addestramento(l))
+	var p := Dati.mod_puntamento(livello(l, "bomba")) if s.get("dann", true) else 0
 	if p != 0:
 		m.append(["Addestramento al puntamento", p])
+	if s.get("senza_luna", false):
+		m.append(["Notte senza luna", -1])
 	if ruolo(l) == "bombardiere":
 		m.append(["Puntatore %s" % Dati.SPECIALISTI[l["elite"]]["nome"], 1])
 	if s["avv"]["anticipato"]:
@@ -1205,6 +1248,8 @@ func _ha_colpi(nd: String) -> bool:
 func _rivela(nd: String, u: Dictionary, perche: String) -> void:
 	var x := d6()
 	u["valore"] = Dati.danno_upkeep(int(u["u"]), x)
+	if s.get("wallis", false):
+		u["valore"] = maxi(int(Dati.UPKEEP[int(u["u"])][0]), int(Dati.UPKEEP[int(u["u"])][1]))
 	u["rivelato"] = true
 	_mostra_dadi("%s: Upkeep %s" % [perche, "precedente" if u.get("precedente", false) else "di " + str(u["lanc"])], [x], [], "%d danni" % int(u["valore"]))
 	_log("%s: l'Upkeep di %s esplode contro la %s (dado %d, %s): %d danni. Totale %d su %d." % [perche, u["lanc"], Dati.DIGHE[nd]["nome"], x, "pari" if x % 2 == 0 else "dispari", int(u["valore"]), danni_diga(nd), capacita(nd)])

@@ -24,7 +24,11 @@ E gli scenari di volo, con le regole 6.0-7.10:
 - **8 · Il volo della riserva mobile**: cinque Lancaster che partono alle 23:00 con l'allerta già a 3; ordini via radio dal turno 5.
 - **9 · Il raid delle dighe**: tutte le forze insieme, diciannove Lancaster.
 
-La campagna (scenario 10, con i turni di pianificazione) non c'è ancora.
+E la campagna:
+
+- **10 · Operazione Chastise**: quattro turni di pianificazione (requisizioni, sicurezza, addestramento, modifiche,
+  ricognizione) sulla lavagna di pianificazione, poi la preparazione del volo, la sortita con le onde scelte dal
+  giocatore e il raid sulla mappa di volo, con la sorpresa alle dighe e i palloni di sbarramento.
 
 ## Cosa fa il gioco
 
@@ -80,13 +84,19 @@ sono ricostruite in modo coerente con le etichette originali tradotte; anche la 
 specialisti proposti per ciascun Lancaster seguono la lettura più probabile. Tutti i numeri delle tabelle vengono dai
 Player Aid e dalla mappa del modulo.
 
+Per la campagna mancano la terza parte del regolamento e la scheda dello scenario 10: le regole vengono dalle tabelle
+P1-P10 e dalla lavagna di pianificazione (Mission Planning Blotter). Sono ricostruiti in particolare i livelli di
+addestramento iniziali (reclute 0, esperti 1, veterani 2 in ogni specialità), l'assegnazione automatica di equipaggi,
+specialisti e Upkeep ai Lancaster pronti (i migliori equipaggi per primi) e il rapporto finale (rv delle dighe aperte
+e perdite, come nello scenario 9).
+
 ## Sviluppo
 
 - Godot 4.7, rendering gl_compatibility, esportazione web.
 - `scripts/dati.gd` tabelle, dighe, gettoni, Upkeep, specialisti e scenari; `scripts/partita.gd` motore delle regole
   (stato in un dizionario salvabile, decisioni in `s.attesa`); `scripts/bot.gd` giocatore automatico;
-  `scripts/volo.gd` scenari di volo (estende il motore); `scripts/mappa.gd` mappa del bersaglio; `scripts/mappa_volo.gd` mappa di volo; `scripts/main.gd` interfaccia; `scripts/aiuto.gd` regole in italiano;
+  `scripts/volo.gd` scenari di volo (estende il motore); `scripts/campagna.gd` campagna e `scripts/lavagna.gd` lavagna di pianificazione; `scripts/mappa.gd` mappa del bersaglio; `scripts/mappa_volo.gd` mappa di volo; `scripts/main.gd` interfaccia; `scripts/aiuto.gd` regole in italiano;
   `scripts/net.gd` Firebase.
 - Prove: `godot --headless --script res://tests/partite_auto.gd` (partite automatiche di tutti gli scenari, con
-  salvataggio e ricarica a metà), `tests/voli_auto.gd` (scenari di volo), `xvfb-run godot --script res://tests/screenshot.gd`.
+  salvataggio e ricarica a metà), `tests/voli_auto.gd` (scenari di volo), `tests/campagna_auto.gd` (campagne), `xvfb-run godot --script res://tests/screenshot.gd`.
 - Pubblicazione solo su richiesta: Actions → *Pubblica* → *Run workflow*, oppure un commit con `[pubblica]` nel messaggio.

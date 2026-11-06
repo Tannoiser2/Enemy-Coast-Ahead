@@ -90,8 +90,12 @@ func vivo(l: Dictionary) -> bool:
 func zona_diga(d: String) -> String:
 	return "ruhr" if Dati.DIGHE[d]["zona"] == "Ruhr" else "weser"
 
+func ora() -> String:
+	var h: String = String(Dati.ORA_VOLO[clampi(int(s["turno_volo"]), 1, Dati.ORA_VOLO.size() - 1)]).substr(0, 2)
+	return h + super.ora()
+
 func nav(l: Dictionary) -> int:
-	return Dati.navigazione(addestramento(l))
+	return Dati.navigazione(livello(l, "nav"))
 
 ## Gruppi: le onde e i Lancaster indipendenti in volo (non nel rientro, non sulle mappe del bersaglio).
 func gruppi() -> Array:
@@ -228,6 +232,9 @@ func _v_inizio() -> void:
 
 # ================================================================ 7.1 coordinamento (F1)
 func _v_coord() -> void:
+	if not s.get("vhf", true):
+		s["fase"] = "v_radio"
+		return
 	var sc := []
 	var per_zona := {}
 	for g in gruppi():
@@ -512,6 +519,8 @@ func _mod_navigazione(g: String) -> int:
 	if ruolo(c) == "navigatore":
 		m += 1
 	var fari := 0
+	if s.get("senza_luna", false):
+		m -= 1
 	for l in lanc_gruppo(g):
 		m -= conta_guasti(l, "errore")
 		if ha_guasto(l, "bussola") and int(l["upkeep"]) >= 0:
@@ -619,9 +628,18 @@ func _v_piazza() -> void:
 		var n: int = int(info[0])
 		if info[2]:
 			n += gs.size() + int(s["allerta"])
+		if z == "costa_inglese" and int(s.get("extra_costa", 0)) > 0:
+			n += int(s["extra_costa"])
+			_log("Aerei poco pronti: %d pericoli in più sulla costa inglese." % int(s["extra_costa"]))
+			s["extra_costa"] = 0
 		for k in n:
 			var i := _pesca_pericolo(info[1])
 			s["pendenti"].append({"g": gs[k % gs.size()], "colore": info[1], "i": i, "zona": z})
+		for g in gs:
+			for l in lanc_gruppo(g):
+				if l.get("jinx", false):
+					s["pendenti"].append({"g": g, "colore": info[1], "i": _pesca_pericolo(info[1]), "zona": z})
+					_log("Il cane di Gibson è a bordo di %s: un pericolo in più." % l["id"])
 		_log("%s: %d pericoli." % [Dati.NOME_ZONA[z], n])
 	s["evita_zone_fatte"] = []
 	s["fase"] = "v_evita"
@@ -943,6 +961,8 @@ func _v_acquisizione() -> void:
 		var d: String = c["primario"]
 		var rec: int = int(s["recon_zone"].get(c["zona"], 0)) + int(s["dighe"][d]["recon"])
 		var serve := Dati.acquisizione(rec)
+		if s.get("senza_luna", false):
+			serve = [12, 12, 11, 10, 9, 8, 6][mini(rec, 6)]
 		var dd := _dadi(2)
 		var ok: bool = dd[0] + dd[1] >= serve
 		_mostra_dadi("Acquisizione della %s: serve %d" % [Dati.DIGHE[d]["nome"], serve], dd, [], "bersaglio trovato" if ok else "non trovato")
@@ -1004,6 +1024,7 @@ func _entra_diga(d: String) -> void:
 	else:
 		_controllo_visibilita()
 	s["dighe"][d]["visibilita"] = s["visibilita"]
+	_arrivo_diga(d)
 	for l in s["lanc"]:
 		if l["pos"] == "acquisizione" and l["diga"] == d:
 			if l["entrata"] == "coordinata":
@@ -1018,6 +1039,10 @@ func _entra_diga(d: String) -> void:
 			l["onda"] = ""
 	_sistema_onde()
 	s["fase"] = "inizio"
+
+## Negli scenari 6-9 non succede nulla di speciale quando si arriva a una diga (la campagna controlla la sorpresa).
+func _arrivo_diga(_d: String) -> void:
+	pass
 
 func _f_inizio() -> void:
 	super._f_inizio()

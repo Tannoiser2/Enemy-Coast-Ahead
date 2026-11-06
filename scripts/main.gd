@@ -25,6 +25,7 @@ var radice: Control
 var ui: Control
 var mappa: MappaBersaglio
 var mappa_volo: MappaVolo
+var lavagna: Lavagna
 var bottone_vista: Button
 var vista_volo := false
 var ultima_fase_volo := false
@@ -188,6 +189,8 @@ func _menu() -> void:
 	for n in [6, 7, 8, 9]:
 		var sv: Dictionary = Dati.VOLI[n]
 		sc_box.add_child(_riga_scenario("Scenario %d · %s" % [n, sv["titolo"]], "%s · %s" % [sv["ora"], sv["storia"]], func(): _nuova(n, false)))
+	sc_box.add_child(_etichetta("CAMPAGNA", "titoli", 22, C_ARANCIO))
+	sc_box.add_child(_riga_scenario("Scenario 10 · %s" % Dati.CAMPAGNA["titolo"], "%s · %s" % [Dati.CAMPAGNA["ora"], Dati.CAMPAGNA["storia"]], func(): _nuova(10, false)))
 	var basso := HBoxContainer.new()
 	basso.add_theme_constant_override("separation", 10)
 	col.add_child(basso)
@@ -202,7 +205,7 @@ func _menu() -> void:
 	basso.add_child(_bottone("Riprendi online", func(): _carica_online(codice.text.strip_edges().to_upper(), esito)))
 	basso.add_child(_bottone("Regole e aiuto", func(): _aiuto()))
 	col.add_child(esito)
-	col.add_child(_etichetta("Versione digitale per uso personale del gioco GMT di Jeremy White (2014). Scenari d'attacco 1-5.", "testo", 13, Color(0.45, 0.47, 0.5)))
+	col.add_child(_etichetta("Versione digitale per uso personale del gioco GMT di Jeremy White (2014). Scenari 1-9 e campagna.", "testo", 13, Color(0.45, 0.47, 0.5)))
 
 func _riga_scenario(titolo: String, testo: String, f: Callable) -> Control:
 	var pc := PanelContainer.new()
@@ -219,7 +222,11 @@ func _riga_scenario(titolo: String, testo: String, f: Callable) -> Control:
 
 # ================================================================ partita
 func _nuova(scen: int, facile: bool) -> void:
-	if scen >= 6:
+	if scen == 10:
+		var c := PartitaCampagna.new()
+		c.nuova_campagna()
+		g = c
+	elif scen >= 6:
 		var v := PartitaVolo.new()
 		v.nuova_volo(scen)
 		g = v
@@ -229,11 +236,14 @@ func _nuova(scen: int, facile: bool) -> void:
 	_avvia()
 
 func _da_dati(d: Dictionary) -> void:
-	g = PartitaVolo.new() if d.get("volo", false) else Partita.new()
+	g = PartitaCampagna.new() if d.get("campagna", false) else (PartitaVolo.new() if d.get("volo", false) else Partita.new())
 	g.importa(d)
 
 func is_volo() -> bool:
 	return g != null and g.s.get("volo", false)
+
+func pianificazione() -> bool:
+	return g != null and g.s.get("campagna", false) and (g.s["fase"].begins_with("p_") or g.s["fase"].begins_with("f_"))
 
 func fase_volo() -> bool:
 	return is_volo() and (g.s["fase"].begins_with("v_") or g.s["fase"] == "specialisti" or (g.s["fase"] == "concluso"))
@@ -292,6 +302,17 @@ func _costruisci_tavolo() -> void:
 		_applica_vista()
 	else:
 		mappa_volo = null
+	if g.s.get("campagna", false):
+		lavagna = Lavagna.new()
+		lavagna.position = mappa.position
+		lavagna.size = mappa.size
+		lavagna.anchor_bottom = 1.0
+		lavagna.offset_bottom = -8
+		ui.add_child(lavagna)
+		lavagna.imposta(g, fonts)
+		_applica_vista()
+	else:
+		lavagna = null
 	# colonna destra
 	var dx := VBoxContainer.new()
 	dx.position = Vector2(866, 54)
@@ -374,8 +395,13 @@ func _cambia_vista() -> void:
 func _applica_vista() -> void:
 	if mappa_volo == null:
 		return
-	mappa_volo.visible = vista_volo
-	mappa.visible = not vista_volo
+	var piano := pianificazione()
+	if lavagna != null:
+		lavagna.visible = piano
+		lavagna.queue_redraw()
+	bottone_vista.visible = not piano
+	mappa_volo.visible = vista_volo and not piano
+	mappa.visible = not vista_volo and not piano
 	bottone_vista.text = "Mappa del bersaglio" if vista_volo else "Mappa di volo"
 	mappa_volo.queue_redraw()
 	mappa.queue_redraw()
@@ -386,11 +412,13 @@ func _aggiorna() -> void:
 		return
 	if mappa_volo != null:
 		var fv := fase_volo()
-		if fv != ultima_fase_volo:
+		if fv != ultima_fase_volo or (lavagna != null and lavagna.visible != pianificazione()):
 			vista_volo = fv
 			ultima_fase_volo = fv
 			_applica_vista()
 		mappa_volo.queue_redraw()
+		if lavagna != null:
+			lavagna.queue_redraw()
 	titolo_scen.text = "%s%s" % [g.nome_scenario(), " (prima partita)" if g.s["facile"] else ""]
 	# registro
 	var righe: Array = g.s["log"]
@@ -413,6 +441,7 @@ func _aggiorna() -> void:
 	eventi_visti = ev.size()
 	_squadriglia()
 	_scelte()
+	scheda_diga.visible = not pianificazione()
 	scheda_diga.queue_redraw()
 	traccia.queue_redraw()
 	dadi.queue_redraw()
@@ -424,6 +453,29 @@ func _squadriglia() -> void:
 	for c in squadriglia.get_children():
 		c.queue_free()
 	squadriglia.add_child(_etichetta("SQUADRIGLIA", "titoli", 16, C_ARANCIO))
+	if pianificazione() and g.s["lanc"].is_empty():
+		if g.s["aerei"].is_empty():
+			var vuoto := _etichetta("Nessun Lancaster ancora: si requisiscono con una squadra dedicata alle requisizioni.", "testo", 13, C_GRIGIO)
+			vuoto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vuoto.custom_minimum_size = Vector2(170, 0)
+			squadriglia.add_child(vuoto)
+		for a in g.s["aerei"]:
+			var ha := HBoxContainer.new()
+			ha.add_theme_constant_override("separation", 5)
+			var ia := TextureRect.new()
+			ia.texture = load("res://assets/pedine/%s_f.png" % a["id"])
+			ia.custom_minimum_size = Vector2(38, 38)
+			ia.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ia.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+			ha.add_child(ia)
+			var va := VBoxContainer.new()
+			va.add_theme_constant_override("separation", -3)
+			ha.add_child(va)
+			va.add_child(_etichetta("%s %s" % [a["id"], Dati.LANCASTER[a["id"]]["pilota"]], "grassetto", 14, C_TESTO))
+			var st := "a terra" if a.get("fermo", false) else ("danneggiato" if int(a["danni"]) > 0 else "pronto")
+			va.add_child(_etichetta(st, "testo", 13, C_GRIGIO if st == "pronto" else Color(0.9, 0.55, 0.5)))
+			squadriglia.add_child(ha)
+		return
 	for l in g.s["lanc"]:
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 5)
@@ -627,6 +679,12 @@ func _disegna_traccia() -> void:
 		return
 	var c := traccia
 	var w := c.size.x
+	if pianificazione():
+		c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
+		var pt: int = int(g.s["piano"])
+		c.draw_string(fonts["titoli"], Vector2(12, 30), "PIANIFICAZIONE · TURNO %d DI 4" % pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+		c.draw_string(fonts["testo"], Vector2(12, 54), "%s · %d RP · %d squadre, %d equipaggi, %d Lancaster, %d Upkeep" % [Dati.LUNA[pt], int(g.s["rp"]), g.s["squadre"].size(), int(g.s["equipaggi"]["recluta"]) + int(g.s["equipaggi"]["esperto"]) + int(g.s["equipaggi"]["veterano"]), g.s["aerei"].size(), g.s["upkeep_scorta"].size()], HORIZONTAL_ALIGNMENT_LEFT, w - 20, 16, C_GRIGIO)
+		return
 	if fase_volo():
 		c.draw_rect(Rect2(0, 0, w, c.size.y), Color(0.09, 0.1, 0.115))
 		var tv: int = int(g.s["turno_volo"])

@@ -14,6 +14,8 @@ func scelta() -> String:
 		return ""
 	var ids: Array = a["scelte"].map(func(c): return c["id"])
 	var s: Dictionary = p.s
+	if a["tipo"].begins_with("p_") or a["tipo"].begins_with("f_"):
+		return _campagna(a["tipo"], ids, s)
 	match a["tipo"]:
 		"corsa":
 			var migliore := ""
@@ -128,3 +130,98 @@ func gioca(max_mosse := 3000) -> int:
 		p.scegli(scelta())
 		n += 1
 	return n
+
+## Campagna: un piano semplice (tre o quattro squadre, una quindicina di equipaggi, radio e mirino, foto delle dighe).
+func _campagna(tipo: String, ids: Array, s: Dictionary) -> String:
+	var rp: int = int(s["rp"])
+	var ded := func(box: String) -> String:
+		for id in ids:
+			if id.begins_with("dedica:") and id.ends_with(":" + box):
+				return id
+		return ""
+	match tipo:
+		"p_req":
+			for q in ["s5", "s6", "s3", "s1"]:
+				if ("squadra:" + q) in ids and s["squadre"].size() < 4 and rp >= 15:
+					return "squadra:" + q
+			var d: String = ded.call("requisizioni")
+			if d != "" and p.dedicate("requisizioni").is_empty():
+				return d
+			var eq: Dictionary = s["equipaggi"]
+			var tot: int = int(eq["recluta"]) + int(eq["esperto"]) + int(eq["veterano"])
+			if tot < 14:
+				var voglio := "veterano" if int(eq["veterano"]) < 5 else ("esperto" if int(eq["esperto"]) < 6 else "recluta")
+				if ("equip:" + voglio) in ids and rp >= 12:
+					return "equip:" + voglio
+			var integri: int = s["aerei"].filter(func(x): return int(x["danni"]) == 0).size()
+			var up: int = s["upkeep_scorta"].size()
+			if "upkeep" in ids and up < integri + 3 and up <= integri and rp >= 3:
+				return "upkeep"
+			if "lanc" in ids and integri < maxi(tot, 6) + 2 and rp >= 4:
+				return "lanc"
+			if "upkeep" in ids and up < integri + 3 and rp >= 3:
+				return "upkeep"
+			if "rp" in ids and rp < 20 and int(s["richieste"]) < 2:
+				return "rp"
+			return "fine"
+		"p_sic":
+			if "gira:polizia" in ids and s["spia"] and rp >= 5:
+				return "gira:polizia"
+			if "gioca:polizia" in ids and rp >= 15:
+				return "gioca:polizia"
+			if "gioca:tirpitz" in ids:
+				return "gioca:tirpitz"
+			return "fine"
+		"p_add":
+			var d: String = ded.call("addestramento")
+			if d != "" and p.dedicate("addestramento").is_empty():
+				return d
+			if "via" in ids:
+				return "via"
+			var meglio := ""
+			var basso := 99
+			for c in ["quota", "bomba", "nav"]:
+				if c in ids:
+					var v := 0
+					for e in s["addestramento"]:
+						v += int(s["addestramento"][e][c])
+					if v < basso:
+						basso = v
+						meglio = c
+			return meglio if meglio != "" else ids[0]
+		"p_mod":
+			for box in ["radio", "cabina", "altimetro", "riparazioni"]:
+				var d: String = ded.call(box)
+				if d != "" and p.dedicate(box).is_empty():
+					return d
+			for box in ["cabina", "radio", "altimetro"]:
+				if ("dado:" + box) in ids and rp >= 25 and int(s["mod_dadi"][box]) < 3:
+					return "dado:" + box
+			return "via"
+		"p_rec":
+			for z in ["costa_olandese", "ruhr", "weser"]:
+				if ("zona:" + z) in ids and rp >= 22 and int(s["recon_zone"][z]) < 2:
+					return "zona:" + z
+			for dg in ["mohne", "eder", "sorpe"]:
+				if ("diga:" + dg) in ids and rp >= 4 and int(s["dighe"][dg]["recon"]) < 3:
+					return "diga:" + dg
+			return "fine"
+		"p_lancio":
+			return "lancia" if int(s["piano"]) >= 3 else "attendi"
+		"f_aerei", "f_ordigni":
+			var box := tipo.substr(2)
+			if p.dedicate(box).size() < (s["squadre"].size() + 1) / 2:
+				for id in ids:
+					if id.begins_with("dedica:"):
+						return id
+			return "via"
+		"f_sortita":
+			if "auto" in ids:
+				return "auto"
+			if "decolla" in ids:
+				return "decolla"
+	if "via" in ids:
+		return "via"
+	if "fine" in ids:
+		return "fine"
+	return ids[ids.size() - 1]

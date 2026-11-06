@@ -1,0 +1,117 @@
+## Testi dell'aiuto in linea: le regole degli scenari d'attacco riassunte in italiano, con le tabelle.
+class_name Aiuto
+extends RefCounted
+
+const CAPITOLI := {
+"Come si gioca": """[b]Enemy Coast Ahead: The Dambuster Raid[/b] è un solitario: comandi il 617° Squadron della RAF nella notte del 16-17 maggio 1943 (Operazione Chastise), quando i Lancaster attaccarono le dighe della Ruhr con la bomba rimbalzante [i]Upkeep[/i].
+
+Negli scenari d'attacco (1-5) la squadriglia è già sopra la diga. Ogni [b]turno d'attacco[/b] dura 7-8 minuti e ha quattro fasi:
+
+[b]1. Corsa[/b] - un solo Lancaster con l'Upkeep lascia il Cerchio vicino ed entra nella zona lontana dell'avvicinamento. Fino a due Lancaster [i]senza[/i] Upkeep possono fargli da scorta.
+[b]2. Avvicinamento e sgancio[/b] - il Lancaster attraversa le zone lontana, vicina e ravvicinata (la Sorpe non ha la zona vicina), affronta la contraerea, regola velocità e quota e sgancia l'Upkeep. Oppure richiama e torna al Cerchio vicino per riprovare.
+[b]3. Volo in cerchio[/b] - si spostano i Lancaster fra il Cerchio vicino e il Cerchio lontano; chi non ha più l'Upkeep può lasciare il bersaglio; dal Cerchio vicino si sparano i razzi Very.
+[b]4. Stato[/b] - visibilità (turni 3, 5 e 7), logoramento delle difese, controllo del caccia notturno, detonazione degli Upkeep (solo se c'è un Lancaster nel Cerchio vicino che osserva), razzi che si spengono.
+
+Dopo il turno 8 si ricomincia dal turno 1. Lo scenario finisce quando la diga cede, quando un caccia notturno attacca, quando nessun Lancaster sulla diga ha più un Upkeep o quando il carburante finisce. Poi si fanno i controlli del [b]rientro alla base[/b], la [b]ricognizione del mattino[/b] e il [b]rapporto[/b] (Debriefing).
+
+[b]Comandi[/b]
+- Le decisioni compaiono nel pannello a destra: clicca il pulsante o premi il numero (1-9).
+- Puoi anche cliccare sulla mappa i Lancaster evidenziati in giallo (per scegliere chi attacca e per spostarli fra i cerchi).
+- Passa col mouse su una pedina per vedere equipaggio, specialista e stato.
+- «Decidi tu» lascia la scelta al computer. F1 apre questo aiuto.
+- La partita si salva da sola su questo dispositivo; «Salva online» dà un codice di 6 caratteri per riprenderla altrove.""",
+
+"Avvicinamento": """[b]Zona lontana[/b]
+[b]Passo 1 · Vettore d'avvicinamento.[/b] Un dado sulla tabella stampata sulla mappa: la colonna dipende dalla diga (Eder, Sorpe o Bever, altre dighe), la riga dal livello di ricognizione. Con tempo sereno valgono solo i risultati in alto della casella, con la nebbia anche quelli in basso.
+  S = un gettone Velocità in meno · A = un gettone Quota in meno · M = un segno Michelskopf (solo Eder).
+  Ogni razzo Very sulla traccia dei turni annulla una A. Shannon tira due dadi e sceglie.
+[b]Passo 2 · Velocità.[/b] Peschi tanti gettoni Velocità quanti ne concede l'addestramento (vedi Tabelle), +1 col motorista, -1 per ogni S. Ne tieni uno; gli altri tornano nella tazza. Se non puoi pescarne, resti senza gettone fino allo sgancio.
+[b]Passo 3 · Quota.[/b] Come sopra con i gettoni Quota (+1 col navigatore Walker o Urquhart, -1 per ogni A). Servono le [b]luci Aldis accese[/b], tranne sulla Sorpe e sulla Bever.
+[b]Passo 4 · Contraerea[/b] (se la diga ne ha).
+[b]Passo 5 · Decisione:[/b] sganciare subito (sgancio anticipato, -2), proseguire o richiamare.
+
+[b]Zona vicina[/b] (non c'è sulla Sorpe e sulla Bever)
+[b]Passo 6 · Regolazione:[/b] peschi un nuovo gettone Velocità [i]oppure[/i] Quota, che sostituisce quello che hai. Sulla Eder entrare nella zona vicina dà un segno M.
+[b]Passo 7 · Contraerea. Passo 8 · Mitragliatrici anteriori[/b] (anche delle scorte). [b]Passo 9 · Decisione.[/b]
+
+[b]Zona ravvicinata[/b]
+[b]Passo 10 · Regolazione e contraerea. Passo 11 · Mitragliatrici. Passo 12 · Sgancio o richiamo.[/b] Sganciando da qui si fa il [b]controllo dello sgancio tardivo[/b]: 1 = -2 «un rimbalzo di troppo?» · 2-3 = -1 · 4-5 = nessun effetto · 6 = +1 «Centrato!». Sulla Eder dà anche segni M (2, 2, 1, 0).
+
+[b]Richiamo[/b]: il Lancaster torna al Cerchio vicino con il segnalino «Passaggio a vuoto», che più avanti si può scambiare con un gettone in più (passi 2, 3, 6, 10 o controllo finale). Chi nel Cerchio vicino vede fallire uno sgancio riceve il segnalino «Avvicinamento osservato», che vale allo stesso modo.
+
+[b]Scorte[/b]: sparano con le mitragliatrici anteriori e la contraerea può colpire loro invece del Lancaster all'attacco. Con lo sgancio o il richiamo tornano al Cerchio vicino.""",
+
+"Sgancio": """[b]Sequenza di sgancio[/b]
+[b]1 · Quota finale.[/b] Peschi tanti gettoni Quota quanti ne indica il gettone d'avvicinamento («n gettoni») e ne tieni uno: conta il lato rosa, con il suo modificatore (+0/+4) ed eventualmente il segno M.
+[b]2 · Velocità finale.[/b] Lo stesso con i gettoni Velocità.
+[b]3 · SGANCIO![/b] Due dadi più i modificatori:
+  gettoni Quota e Velocità finali · addestramento al puntamento · +1 puntatore specialista · -2 sgancio anticipato · sgancio tardivo · -4 fotoelettriche · -1 Lancaster danneggiato.
+  [b]15 o più[/b]: l'Upkeep colpisce la diga. [b]11-14[/b]: la manca. [b]10 o meno[/b]: la manca e l'esplosione danneggia il Lancaster (concussione).
+  Ogni sgancio alza di 1 l'attività della diga. Il valore dell'Upkeep resta coperto fino alla detonazione.
+[b]4 · Risalita.[/b] I gettoni tornano nelle tazze. Sulla Eder: [b]controllo del Michelskopf[/b], 2 dadi -1 per ogni segno M raccolto: con 3 o meno il Lancaster si schianta.
+[b]5 · Contraerea[/b] in risalita (niente azione evasiva). [b]6 · Mitragliatrice posteriore[/b] contro una difesa.
+
+[b]Detonazione[/b] (fase di stato): se un Lancaster è nel Cerchio vicino si girano gli Upkeep andati a segno e si tira un dado: pari vale il numero pari del segnalino, dispari quello dispari. Quando i danni raggiungono la capacità della diga (secondo il livello dell'acqua) la diga cede: [b]breccia[/b].
+[b]Ricognizione del mattino[/b]: per ogni Upkeep a segno un dado: 1 = un danno in meno, 6 = un danno in più.""",
+
+"Pericoli": """[b]Contraerea (A4)[/b] - Si tirano 2 dadi, 3 se le luci Aldis sono accese o ci sono fotoelettriche (si tengono i due più letali). Colpisce se la somma è nell'intervallo del livello:
+  livello 1: 2-4 · livello 2: 3-5 · livello 3: 4-6 · livello 4: 5-7 · livello 5: 6-9.
+  Con i livelli 4 e 5 un colpo con somma 7 è [b]critico[/b]: due colpi. Con un doppio si applica il risultato e si ritira, finché escono doppi o il Lancaster è abbattuto o tenta l'azione evasiva.
+  Un colpo danneggia il Lancaster; il secondo lo abbatte.
+[b]Azione evasiva[/b] - Il Lancaster all'attacco rinuncia a un gettone (Velocità o Quota), la scorta si sgancia nel Cerchio vicino; poi un dado: pari il colpo è annullato, dispari va a segno.
+
+[b]Mitragliatrici (A5)[/b] - Ogni aereo tira un dado contro una difesa: con un risultato uguale o minore del livello la difesa scende di 1 (una sola riduzione per difesa a ogni passo). -1 col mitragliere specialista. Ogni riduzione alza l'attività di 1.
+[b]Logoramento (A7)[/b] - Se in quel turno è stato sganciato un Upkeep, un dado per ogni difesa: uguale o minore del livello, scende di 1.
+
+[b]Caccia notturno (A6)[/b] - Passo 1, avvistamento: 2 dadi, l'intervallo dipende dall'allerta (allerta 0: 2-3, 1: 2-4, 2: 3-5, 3: 4-6, 4: 5-7; con le fotoelettriche 2-4, 3-5, 4-6, 5-7, 6-9).
+  Passo 2: 2 dadi secondo l'attività della diga (Upkeep sganciati, razzi Very, Lancaster abbattuti, difese ridotte dalle mitragliatrici):
+  [b]nessun caccia nei paraggi[/b] - attività 0: attacco 2, nei paraggi 3-4, svanisce 5+ · 1-3: attacco 2, paraggi 3-7, svanisce 8+ · 4-6: attacco 2-3, paraggi 4-8, svanisce 9+ · 7+: attacco 2-4, paraggi 5-10, svanisce 11+.
+  [b]caccia già nei paraggi[/b] - attività 0: attacco 2-3, paraggi 4, svanisce 5+ · 1-3: 2-4, 5, 6+ · 4-6: 2-5, 6-7, 8+ · 7+: 2-6, 7-8, 9+.
+  Se attacca, abbatte un Lancaster del Cerchio vicino e gli altri si disperdono: l'attacco alla diga finisce.
+
+[b]Visibilità (A1)[/b] - Turni 3, 5 e 7 (e quando si ricomincia dal turno 1): 2 dadi, 5 o meno nebbia, 6 o più sereno. Negli scenari 4 e 5 -2 al tiro.
+[b]Razzi Very[/b] - Un Lancaster che inizia e finisce la fase in cerchio nel Cerchio vicino può spararne uno: annulla una A del vettore d'avvicinamento ma alza l'attività. A ogni fase di stato un dado meno i turni trascorsi: 0 o meno, il razzo si spegne.""",
+
+"Tabelle": """[b]Addestramento degli equipaggi[/b] (scenari 1-9)
+  Recluta: livello 2 · Esperto: livello 3 · Veterano: livello 5.
+[b]Gettoni concessi da Quota e Velocità[/b]: livello 1-2 = 1 gettone · 3-4 = 2 · 5-6 = 3 · 7 = 4.
+[b]Modificatore di puntamento e sgancio[/b]: livello 2-4 = +1 · 5-6 = +2 · 7 = +3 · 8 = +4.
+
+[b]Gettoni Quota[/b] (avvicinamento · sgancio sgancio)
+  53 ft, 1 gettone · sgancio 64 ft +3 · 54 ft, 1 · sgancio 56 ft +2 M · 56 ft, 2 · sgancio 52 ft +1 M · 60 ft, 3 · sgancio 70 ft +1
+  65 ft, 2 · sgancio 67 ft +2 · 70 ft, 1 · sgancio 60 ft +4 · irregolare, 0 · sgancio irregolare +0 M
+[b]Gettoni Velocità[/b]
+  210 mph, 1 · sgancio 218 mph +3 M · 212 mph, 1 · sgancio 223 mph +2 · 216 mph, 2 · sgancio 228 mph +1 · 220 mph, 3 · sgancio 213 mph +1 M
+  227 mph, 2 · sgancio 216 mph +2 M · 231 mph, 1 · sgancio 220 mph +4 · irregolare, 0 · sgancio irregolare +0 M
+
+[b]Capacità di danno delle dighe[/b] (acqua in salita / alta / piena)
+  Möhne, Eder, Ennepe, Lister, Diemel, Henne: 12 / 8 / 6 · Sorpe: 15 / 12 / 10 · Bever: 14 / 11 / 9.
+
+[b]Rientro alla base (E1)[/b] - 2 dadi: 7 o più torna a Scampton; 6 o meno tabella dei dispersi (E2): 4 o meno disperso (M.I.A.), 5 lunga deviazione e rientro, 6-9 rientro danneggiato (se era già danneggiato un dado: 1-4 precipita), 10+ rientro.
+  Modificatori: -1 recluta, +1 veterano, +1 specialista a bordo, -1 danneggiato, -1 zona della Ruhr, -2 zona del Weser, -1 allarme (allerta 4).
+[b]Ricognizione del mattino (E3)[/b] - per ogni Upkeep a segno: 1 = -1 danno, 2-5 = nessun cambiamento, 6 = +1 danno.
+
+[b]Specialisti[/b] (uno per Lancaster)
+  Puntatore +1 allo sgancio · Motorista +1 gettone Velocità · Navigatore (Walker, Urquhart) +1 gettone Quota · Mitragliere di prua -1 alla mitragliatrice anteriore · Mitragliere di coda -1 alla posteriore · Gibson, comandante: un tiro ripetuto a partita · Shannon: 2 dadi per il vettore d'avvicinamento · Martin: ignora un danno · Ogni specialista dà +1 al rientro alla base.""",
+
+"Scenari": """[b]1 · Attacco alla diga della Möhne[/b] (turno 4, sereno, allerta 1, ricognizione 2, attività 1, acqua piena, contraerea 3). Otto Lancaster, tutti con l'Upkeep: AJ-G di Gibson nel Cerchio vicino, gli altri nel Cerchio lontano; AJ-M di Hopgood è già danneggiato. Equipaggi veterani tranne AJ-J e AJ-N (esperti). Gli Upkeep rimasti proseguono verso la Eder. Il carburante finisce al terzo turno 8.
+[b]2 · Attacco alla diga della Eder[/b] (turno 5, nebbia, allerta 2, ricognizione 2, nessuna contraerea). AJ-G senza Upkeep (fa da scorta e osserva), AJ-L, AJ-N e AJ-Z con l'Upkeep. Attenzione al Michelskopf.
+[b]3 · Primo attacco alla Sorpe[/b] (turno 3, nebbia, allerta 1). AJ-T di McCarthy, esperto e danneggiato, con il puntatore Johnson. Sulla Sorpe non c'è la zona vicina e le luci Aldis non contano.
+[b]4 · Secondo attacco alla Sorpe[/b] (turno 3, nebbia con -2 alla visibilità, allerta 3, attività 2, un razzo Very sul turno 2). AJ-F di Brown con il puntatore Oancia. Sulla diga c'è già l'Upkeep di McCarthy (danno coperto). Dopo il primo turno 8: -1 al rientro.
+[b]5 · Attacco alla Ennepe?[/b] (turno 5, nebbia -2, allerta 3, ricognizione 1). AJ-O di Townsend, equipaggio recluta, con il puntatore Franklin. Nebbia di guerra: a ogni avvicinamento un dado, pari Ennepe (mappa della Möhne), dispari Bever (mappa della Sorpe).
+  [b]Prima partita[/b]: equipaggio veterano, sereno, allerta 1, solo la Ennepe.
+
+Il rapporto finale usa le etichette dei Debriefing Chart del libro degli scenari.""",
+
+"Note": """Versione digitale per uso personale di [b]Enemy Coast Ahead: The Dambuster Raid[/b] (GMT Games, 2014), progetto e grafica di Jeremy White. Mappa e pedine vengono dal modulo Tabletop Simulator; caselle, segnalini e testi sono ridisegnati in italiano.
+
+[b]Cosa c'è[/b]: gli scenari d'attacco 1-5 completi (regole 1.0-5.0), con le tabelle A1-A14 ed E1-E3, gli specialisti storici, il Michelskopf, la nebbia di guerra della Ennepe, il rientro alla base, la ricognizione del mattino e il rapporto.
+[b]Cosa manca per ora[/b]: gli scenari di volo 6-9 (mappa di volo, onde, pericoli, navigazione) e la campagna (scenario 10, con i turni di pianificazione). I dati sono già in parte pronti (pericoli, regole 6.0-7.7).
+
+[b]Scelte di conversione[/b]
+- Il libro degli scenari disponibile è una scansione poco leggibile: le combinazioni dei rapporti finali (Debriefing Chart) sono ricostruite in modo coerente con le etichette originali, e anche alcuni valori di partenza (contraerea della Möhne, specialisti di ciascun Lancaster) seguono la lettura più probabile.
+- Gibson (comandante) può far ripetere il tiro di sgancio, della contraerea, del Michelskopf o del caccia notturno.
+- Le luci Aldis si decidono all'inizio di ogni avvicinamento e restano così fino alla risalita.
+
+Font: Josefin Sans (titoli), Source Sans 3 (testo), Crimson Pro e Special Elite, licenze OFL e Apache.""",
+}

@@ -164,7 +164,23 @@ func _rendi_indipendente(l: Dictionary) -> void:
 	_sistema_onde()
 
 # ================================================================ motore
+## Il cane di Gibson non entra nei riquadri del rientro e dei dispersi: passa a un altro Lancaster in volo [13.0].
+func _sposta_jinx() -> void:
+	for l in s["lanc"]:
+		if l.get("jinx", false) and l["pos"] in ["rtb", "smarrito"]:
+			var altri: Array = s["lanc"].filter(func(x): return x["pos"] == "volo" and x["id"] != l["id"])
+			l.erase("jinx")
+			if altri.is_empty():
+				_log("Il cane di Gibson resta a terra: nessun altro Lancaster in volo.")
+			else:
+				var n: Dictionary = altri[_rng() % altri.size()]
+				n["jinx"] = true
+				_log("Il cane di Gibson passa da %s a %s." % [l["id"], n["id"]])
+			return
+
 func _passo() -> void:
+	if s["fase"].begins_with("v_"):
+		_sposta_jinx()
 	match s["fase"]:
 		"specialisti":
 			_f_specialisti()
@@ -212,6 +228,8 @@ func _applica(a: Dictionary, id: String) -> void:
 			s["flak_volo"]["ea"] = id
 		"v_acquis":
 			s["acq_scelta"] = {"gruppo": a["gruppo"], "id": id}
+		"v_very":
+			s["very_scelta"] = id
 		_:
 			super._applica(a, id)
 
@@ -244,9 +262,11 @@ func _v_coord() -> void:
 		per_zona[c["zona"]] = per_zona.get(c["zona"], []) + [g]
 	for z in per_zona:
 		var gs: Array = per_zona[z]
+		var ostile: bool = Dati.PERICOLI_ZONA[z][2]
 		for g in gs:
 			if g.begins_with("O:") and not onda_buona(g) and not _radio_rotta(g):
 				sc.append(_sc("coord:" + g, "Riordina la %s" % s["onde"][g.substr(2)]["nome"].to_lower(), "Se riesce l'onda torna in buon ordine."))
+				sc.append(_sc("coord:" + g + ":v", "Riordina la %s con un razzo Very" % s["onde"][g.substr(2)]["nome"].to_lower(), "Il capo spara un razzo: +1 al tiro%s." % (", ma un pericolo in più in questa zona" if ostile else "")))
 		var ind := gs.filter(func(x): return x.begins_with("L:") and not _radio_rotta(x))
 		var onde := gs.filter(func(x): return x.begins_with("O:") and not _radio_rotta(x))
 		for i in ind:
@@ -256,12 +276,13 @@ func _v_coord() -> void:
 			for o in onde:
 				if capo_gruppo(o)["primario"] == l["primario"]:
 					sc.append(_sc("unisci:%s:%s" % [i, o], "%s si unisce alla %s" % [l["id"], s["onde"][o.substr(2)]["nome"].to_lower()]))
+					sc.append(_sc("unisci:%s:%s:v" % [i, o], "%s si unisce alla %s, con un razzo Very" % [l["id"], s["onde"][o.substr(2)]["nome"].to_lower()], "Il capo dell'onda spara un razzo: +1 al tiro%s." % (", ma un pericolo in più in questa zona" if ostile else "")))
 			for j in ind:
 				if j > i:
 					var m := lanc(j.substr(2))
 					if int(m["upkeep"]) >= 0 and m["primario"] == l["primario"]:
 						sc.append(_sc("crea:%s:%s" % [i, j], "%s e %s formano una nuova onda" % [l["id"], m["id"]]))
-	sc = sc.filter(func(x): return not s.get("coord_fatti", []).has(x["id"]))
+	sc = sc.filter(func(x): return not s.get("coord_fatti", []).has(x["id"].trim_suffix(":v")))
 	if sc.is_empty():
 		s["fase"] = "v_radio"
 		return
@@ -277,6 +298,8 @@ func _radio_rotta(g: String) -> bool:
 func _esegui_coord(id: String) -> void:
 	if not s.has("coord_fatti"):
 		s["coord_fatti"] = []
+	var very := id.ends_with(":v")
+	id = id.trim_suffix(":v")
 	s["coord_fatti"].append(id)
 	var p := id.split(":")
 	var coinvolti := []
@@ -296,6 +319,10 @@ func _esegui_coord(id: String) -> void:
 		capo = capo_gruppo(g)
 	if capo["equip"] == "veterano":
 		mod += 1
+	if very:
+		mod += 1
+		s["very_volo"] = s.get("very_volo", []) + [capo["zona"]]
+		_log("%s spara un razzo Very per radunare gli aerei." % capo["id"])
 	var dd := _dadi(2)
 	var ok: bool = dd[0] + dd[1] + mod >= peggiore
 	_mostra_dadi("Coordinamento: serve %d" % peggiore, dd, [], "riuscito" if ok else "fallito")
@@ -303,7 +330,7 @@ func _esegui_coord(id: String) -> void:
 		"coord":
 			if ok:
 				s["onde"][p[2]]["buona"] = true
-			_log("Riordino della %s: %d+%d%s contro %d: %s." % [s["onde"][p[2]]["nome"].to_lower(), dd[0], dd[1], " +1" if mod else "", peggiore, "l'onda torna in buon ordine" if ok else "resta scompaginata"])
+			_log("Riordino della %s: %d+%d%s contro %d: %s." % [s["onde"][p[2]]["nome"].to_lower(), dd[0], dd[1], (" %+d" % mod) if mod else "", peggiore, "l'onda torna in buon ordine" if ok else "resta scompaginata"])
 		"unisci":
 			var l := lanc(p[2])
 			if ok:
@@ -628,6 +655,10 @@ func _v_piazza() -> void:
 		var n: int = int(info[0])
 		if info[2]:
 			n += gs.size() + int(s["allerta"])
+			var nv: int = s.get("very_volo", []).count(z)
+			if nv > 0:
+				n += nv
+				_log("%s: %d pericolo in più per i razzi Very." % [Dati.NOME_ZONA[z], nv])
 		if z == "costa_inglese" and int(s.get("extra_costa", 0)) > 0:
 			n += int(s["extra_costa"])
 			_log("Aerei poco pronti: %d pericoli in più sulla costa inglese." % int(s["extra_costa"]))
@@ -716,6 +747,7 @@ func _togli_pericolo(id: String, z: String) -> void:
 
 # ================================================================ 7.7 risoluzione (F7)
 func _v_risolvi() -> void:
+	s["very_volo"] = []
 	if s.has("flak_volo"):
 		_flak_volo_passo()
 		return
@@ -770,7 +802,7 @@ func _v_risolvi() -> void:
 func _salvataggio_veterano(l: Dictionary, cosa: String) -> bool:
 	if l["equip"] != "veterano" and not ruolo(l).begins_with("pilota"):
 		return false
-	var x := d6()
+	var x := d6_per(l, "basso")
 	_mostra_dadi("Salvataggio del veterano (%s): serve 6" % l["id"], [x], [], "salvo!" if x == 6 else "niente")
 	if x == 6:
 		_log("%s: l'esperienza dell'equipaggio evita il peggio (%s)." % [l["id"], cosa])
@@ -784,14 +816,14 @@ func _risolvi_pericolo(l: Dictionary, q: Dictionary) -> void:
 		"nessuno":
 			_log("%s: nessun pericolo." % l["id"])
 		"uccelli":
-			var x := d6()
+			var x := d6_per(l, "basso")
 			if x == 1 and not _salvataggio_veterano(l, nome):
 				_log("%s: uccelli contro il parabrezza (dado 1)." % l["id"])
 				_danneggia(l, "uccelli")
 			else:
 				_log("%s: uccelli e pipistrelli, nessun danno (dado %d)." % [l["id"], x])
 		"palloni":
-			var x := d6()
+			var x := d6_per(l, "pari")
 			if _salvataggio_veterano(l, nome):
 				pass
 			elif x % 2 == 0:
@@ -801,7 +833,7 @@ func _risolvi_pericolo(l: Dictionary, q: Dictionary) -> void:
 				_log("%s urta un cavo dei palloni (dado %d)." % [l["id"], x])
 				_distruggi(l, "palloni di sbarramento")
 		"schianto":
-			var x := d6()
+			var x := d6_per(l, "pari")
 			if x % 2 == 1:
 				if _salvataggio_veterano(l, nome):
 					_danneggia(l, "schianto evitato per un soffio")
@@ -894,7 +926,7 @@ func _flak_volo_passo() -> void:
 		if scelta == "si":
 			l["pos"] = "smarrito"
 			_rendi_indipendente(l)
-			var x := d6()
+			var x := d6_per(l, "pari")
 			_mostra_dadi("Azione evasiva", [x], [], "annullato" if x % 2 == 0 else "a segno")
 			_log("%s scarta e scende tra i dispersi: dado %d, %s." % [l["id"], x, "il colpo è annullato" if x % 2 == 0 else "il colpo va a segno"])
 			if x % 2 == 1:
@@ -1001,12 +1033,27 @@ func _v_bersagli() -> void:
 	for d in _dighe_attive():
 		if d in fatte:
 			continue
+		# il capo di un'onda scompaginata può sparare un razzo Very: -1 al dado d'arrivo dei suoi aerei
+		var capi: Array = s["lanc"].filter(func(l): return l["pos"] == "acquisizione" and l["diga"] == d and l["entrata"] == "scoordinata" and l.get("capo_entrata", false) and l["onda"] != "")
+		if not capi.is_empty() and not s["tm"].has("very_" + d):
+			var id := _prendi_very()
+			if id == "":
+				var c: Dictionary = capi[0]
+				_chiedi("v_very", "Ingresso scoordinato alla %s" % Dati.DIGHE[d]["nome"], "La %s arriva scompaginata. %s può sparare un razzo Very: -1 al dado d'arrivo di ogni aereo dell'onda, ma il razzo resta sul turno d'attacco 1 (e conta per l'attività dei caccia)." % [s["onde"][c["onda"]]["nome"].to_lower(), c["id"]],
+					[_sc("si", "Spara il razzo Very"), _sc("no", "Niente razzo")], {"diga": d})
+				return
+			s["tm"]["very_" + d] = id == "si"
 		fatte.append(d)
 		s["tm"]["fatte"] = fatte
 		_entra_diga(d)
 		return
 	s["tm"] = {}
 	s["fase"] = "v_pulizia"
+
+func _prendi_very() -> String:
+	var id: String = s.get("very_scelta", "")
+	s.erase("very_scelta")
+	return id
 
 func _entra_diga(d: String) -> void:
 	s["diga"] = d
@@ -1025,14 +1072,23 @@ func _entra_diga(d: String) -> void:
 		_controllo_visibilita()
 	s["dighe"][d]["visibilita"] = s["visibilita"]
 	_arrivo_diga(d)
+	if not s["dighe"][d].has("palloni_box"):
+		prepara_palloni(d)
+	var onde_very := []
+	if s["tm"].get("very_" + d, false):
+		for l in s["lanc"]:
+			if l["pos"] == "acquisizione" and l["diga"] == d and l.get("capo_entrata", false) and l["entrata"] == "scoordinata":
+				onde_very.append(l["onda"])
+				_log("%s spara un razzo Very sulla %s per guidare l'onda." % [l["id"], Dati.DIGHE[d]["nome"]])
+		s["razzi"].append({"turno": 1, "giro": 0, "assoluto": int(s["turni"])})
 	for l in s["lanc"]:
 		if l["pos"] == "acquisizione" and l["diga"] == d:
 			if l["entrata"] == "coordinata":
-				var x := d6()
+				var x := d6_per(l, "pari")
 				l["pos"] = "vicino" if (x % 2 == 0 or l.get("capo_entrata", false)) else "lontano"
 				_log("%s arriva in formazione: %s." % [l["id"], "Cerchio vicino" if l["pos"] == "vicino" else "Cerchio lontano"])
 			else:
-				var x := d6() + conta_guasti(l, "errore") + (1 if ha_guasto(l, "bussola") else 0)
+				var x := d6_per(l, "alto") + conta_guasti(l, "errore") + (1 if ha_guasto(l, "bussola") else 0) - (1 if l["onda"] != "" and l["onda"] in onde_very else 0)
 				l["arrivo"] = clampi(x, 1, 8)
 				l["pos"] = "in_arrivo" if l["arrivo"] > 1 else "lontano"
 				_log("%s arriva da solo al turno d'attacco %d." % [l["id"], l["arrivo"]])

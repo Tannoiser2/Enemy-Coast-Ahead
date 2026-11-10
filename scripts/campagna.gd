@@ -89,6 +89,16 @@ func livello(l: Dictionary, cat: String) -> int:
 func addestramento(l: Dictionary) -> int:
 	return livello(l, "quota")
 
+## Rientro alla base: +1 se i livelli di ricognizione delle zone della mappa di volo sommano 7 o più (E1).
+func _mod_rientro(l: Dictionary, zona: String) -> Array:
+	var m := super._mod_rientro(l, zona)
+	var t := 0
+	for z in s["recon_zone"]:
+		t += int(s["recon_zone"][z])
+	if t >= 7:
+		m.append(["ricognizione delle zone (%d)" % t, 1])
+	return m
+
 # ================================================================ squadre di terra
 func squadra(id: String) -> Dictionary:
 	for q in s["squadre"]:
@@ -113,16 +123,17 @@ func squadre_libere_turno() -> Array:
 func dedicate(box: String) -> Array:
 	return s["squadre"].filter(func(q): return q.get("dedicata", "") == box)
 
+## Una squadra in «doppio turno» (trasferita nella stessa casella) conta due volte.
 func maneggio_box(box: String) -> int:
 	var t := 0
 	for q in dedicate(box):
-		t += int(valori(q["id"])[0])
+		t += int(valori(q["id"])[0]) * (2 if q.get("doppio", false) else 1)
 	return t
 
 func erk_box(box: String) -> int:
 	var t := 0
 	for q in dedicate(box):
-		t += int(valori(q["id"])[1])
+		t += int(valori(q["id"])[1]) * (2 if q.get("doppio", false) else 1)
 	return t
 
 func _sc_dediche(box: String) -> Array:
@@ -133,6 +144,8 @@ func _sc_dediche(box: String) -> Array:
 			sc.append(_sc("dedica:%s:%s" % [q["id"], box], "%s: dedica la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], _desc_squadra(q["id"]).capitalize() + "."))
 		elif q["dedicata"] != box and not q.get("stanca", false):
 			sc.append(_sc("trasferisci:%s:%s" % [q["id"], box], "%s: trasferisci la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], "Ora dedicata a: %s. Il trasferimento la affatica per sempre." % _min(BOX.get(q["dedicata"], q["dedicata"]))))
+		elif q["dedicata"] == box and not q.get("stanca", false) and not q.get("doppio", false):
+			sc.append(_sc("trasferisci:%s:%s" % [q["id"], box], "%s: doppio turno per la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], "Trasferita nella stessa casella: si affatica per sempre, ma in questo turno conta due volte."))
 	return sc
 
 func _desc_squadra(id: String) -> String:
@@ -148,6 +161,11 @@ func _applica_dedica(id: String) -> bool:
 	if p[0] == "trasferisci":
 		var q := squadra(p[1])
 		_affatica(q)
+		if q.get("dedicata", "") == p[2]:
+			q["doppio"] = true
+			_log("La %s fa il doppio turno: %s." % [dati_squadra(p[1])["nome"], _min(BOX[p[2]])])
+			return true
+		q["doppio"] = false
 		q["dedicata"] = p[2]
 		_log("La %s passa a: %s." % [dati_squadra(p[1])["nome"], _min(BOX[p[2]])])
 		return true
@@ -168,6 +186,7 @@ func _passo() -> void:
 		"p_sic": _p_sicurezza()
 		"p_add": _p_addestramento()
 		"p_mod": _p_modifiche()
+		"p_mod_tiri": _p_modifiche_tiri()
 		"p_rec": _p_ricognizione()
 		"p_lancio": _p_lancio()
 		"f_aerei": _f_controllo("aerei")
@@ -206,6 +225,7 @@ func _p_inizio() -> void:
 		_log("Arrivano altri 60 RP (ora %d)." % int(s["rp"]))
 	for q in s["squadre"]:
 		q["dedicata"] = ""
+		q["doppio"] = false
 	s["recon_dighe_fatte"] = []
 	s["recon_zone_fatte"] = []
 	s["requisiti_turno"] = 0
@@ -509,8 +529,9 @@ func _p_modifiche() -> void:
 			s["rp"] = int(s["rp"]) - 1
 			s["mod_dadi"][m] = int(s["mod_dadi"][m]) + 1
 		elif id == "via":
-			_esegui_modifiche()
-			s["fase"] = "p_rec"
+			_ripara()
+			s["mod_coda"] = ["radio", "altimetro", "cabina"]
+			s["fase"] = "p_mod_tiri"
 			return
 	var sc := []
 	var danneggiati: int = s["aerei"].filter(func(a): return int(a["danni"]) > 0).size()
@@ -534,7 +555,7 @@ func _riassunto_modifiche() -> String:
 			p.append("%s %d" % [_min(BOX[box]), n])
 	return "Dadi: " + (", ".join(p) if not p.is_empty() else "nessuno")
 
-func _esegui_modifiche() -> void:
+func _ripara() -> void:
 	var n := erk_box("riparazioni")
 	for a in s["aerei"]:
 		if n > 0 and int(a["danni"]) > 0 and int(s["rp"]) >= 1:
@@ -542,27 +563,94 @@ func _esegui_modifiche() -> void:
 			n -= 1
 			s["rp"] = int(s["rp"]) - 1
 			_log("Il Lancaster %s è riparato (1 RP)." % a["id"])
-	for box in ["radio", "altimetro", "cabina"]:
+
+func _completa(box: String) -> bool:
+	return s["vhf"] if box == "radio" else (s["aldis"] if box == "altimetro" else s["dann"])
+
+## Un tiro per casella; se la modifica non si completa, si possono ritirare i dadi erk di una squadra fresca
+## dedicata girandola sul lato affaticato (la fatica è permanente) [10.4.3].
+func _p_modifiche_tiri() -> void:
+	var id := _prendi_scelta("p_mod_rit")
+	if id != "" and s.has("mod_tiro"):
+		var mt: Dictionary = s["mod_tiro"]
+		if id.begins_with("ritira:"):
+			var q := squadra(id.substr(7))
+			var erk := int(valori(q["id"])[1])
+			_affatica(q)
+			var dd: Array = mt["dadi"]
+			var rit := 0
+			for i in dd.size():
+				if rit < erk and int(dd[i]) != 6:
+					dd[i] = d6()
+					rit += 1
+			mt["ritirate"] = mt.get("ritirate", []) + [q["id"]]
+			_mostra_dadi("%s (ritiro)" % BOX[mt["box"]], dd, [], "%d sei" % dd.count(6))
+			_log("La %s ritira %d dadi e si affatica: %s." % [dati_squadra(q["id"])["nome"], rit, _lista(dd)])
+			if not _offri_ritiro(mt):
+				_applica_modifica(mt)
+			return
+		_applica_modifica(mt)
+		return
+	if s.has("mod_tiro"):
+		_offri_ritiro(s["mod_tiro"])
+		return
+	while not s["mod_coda"].is_empty():
+		var box: String = s["mod_coda"].pop_front()
+		if _completa(box):
+			continue
 		var dadi := erk_box(box) + int(s["mod_dadi"][box])
 		if dadi <= 0:
 			continue
 		var dd := _dadi(dadi)
-		var sei := dd.count(6)
-		_mostra_dadi(BOX[box], dd, [], "%d sei" % sei)
-		if box == "radio":
-			if sei >= 1:
-				s["vhf"] = true
-				_log("Radio: %s. Tutti i Lancaster hanno la radio VHF." % _lista(dd))
-			else:
-				_log("Radio: %s, niente sei: la radio VHF non è ancora pronta." % _lista(dd))
+		_mostra_dadi(BOX[box], dd, [], "%d sei" % dd.count(6))
+		var mt := {"box": box, "dadi": dd}
+		if _offri_ritiro(mt):
+			return
+		_applica_modifica(mt)
+		if s["fase"] != "p_mod_tiri":
+			return
+	s["fase"] = "p_rec"
+
+func _serve(box: String) -> int:
+	return 1 if box == "radio" else 2 - int(s["sei"][box])
+
+## Chiede se ritirare; vero se ha posto la domanda.
+func _offri_ritiro(mt: Dictionary) -> bool:
+	var box: String = mt["box"]
+	var dd: Array = mt["dadi"]
+	if dd.count(6) >= _serve(box) or dd.count(6) == dd.size():
+		return false
+	var sc := []
+	for q in dedicate(box):
+		if not q.get("stanca", false) and not q["id"] in mt.get("ritirate", []):
+			sc.append(_sc("ritira:" + q["id"], "Ritira i dadi erk della %s" % dati_squadra(q["id"])["nome"], "La squadra si affatica per sempre (%s)." % _desc_squadra(q["id"])))
+	if sc.is_empty():
+		return false
+	sc.append(_sc("tieni", "Tieni il risultato"))
+	s["mod_tiro"] = mt
+	_chiedi("p_mod_rit", BOX[box], "Dadi: %s, %d sei (ne servono %d). Puoi ritirare i dadi erk di una squadra girandola sul lato affaticato." % [_lista(dd), dd.count(6), _serve(box)], sc)
+	return true
+
+func _applica_modifica(mt: Dictionary) -> void:
+	s.erase("mod_tiro")
+	var box: String = mt["box"]
+	var dd: Array = mt["dadi"]
+	var sei := dd.count(6)
+	if box == "radio":
+		if sei >= 1:
+			s["vhf"] = true
+			_log("Radio: %s. Tutti i Lancaster hanno la radio VHF." % _lista(dd))
 		else:
-			s["sei"][box] = int(s["sei"][box]) + sei
-			var ok := int(s["sei"][box]) >= 2
-			if box == "altimetro":
-				s["aldis"] = ok
-			else:
-				s["dann"] = ok
-			_log("%s: %s, %d sei (%d su 2)%s" % [BOX[box], _lista(dd), sei, mini(int(s["sei"][box]), 2), ": modifica completata!" if ok else "."])
+			_log("Radio: %s, niente sei: la radio VHF non è ancora pronta." % _lista(dd))
+	else:
+		s["sei"][box] = int(s["sei"][box]) + sei
+		var ok := int(s["sei"][box]) >= 2
+		if box == "altimetro":
+			s["aldis"] = ok
+		else:
+			s["dann"] = ok
+		_log("%s: %s, %d sei (%d su 2)%s" % [BOX[box], _lista(dd), sei, mini(int(s["sei"][box]), 2), ": modifica completata!" if ok else "."])
+	s["fase"] = "p_mod_tiri"
 
 # ================================================================ P7-P8 ricognizione
 func _p_ricognizione() -> void:
@@ -636,6 +724,7 @@ func _p_lancio() -> void:
 		s["senza_luna"] = int(s["piano"]) % 2 == 0
 		for q in s["squadre"]:
 			q["dedicata"] = ""
+			q["doppio"] = false
 		s["fase"] = "f_aerei"
 		return
 	if id == "attendi":

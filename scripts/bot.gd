@@ -88,9 +88,11 @@ func scelta() -> String:
 			return "fine"
 		"v_coord":
 			for id in ids:
-				if id.begins_with("coord:") or id.begins_with("unisci:"):
+				if (id.begins_with("coord:") or id.begins_with("unisci:")) and not id.ends_with(":v"):
 					return id
 			return "fine"
+		"v_very":
+			return "si"
 		"v_radio":
 			for id in ids:
 				if id == "fine":
@@ -198,6 +200,11 @@ func _campagna(tipo: String, ids: Array, s: Dictionary) -> String:
 				if ("dado:" + box) in ids and rp >= 25 and int(s["mod_dadi"][box]) < 3:
 					return "dado:" + box
 			return "via"
+		"p_mod_rit":
+			for id in ids:
+				if id.begins_with("ritira:") and int(s["piano"]) >= 3:
+					return id
+			return "tieni"
 		"p_rec":
 			for z in ["costa_olandese", "ruhr", "weser"]:
 				if ("zona:" + z) in ids and rp >= 22 and int(s["recon_zone"][z]) < 2:

@@ -23,6 +23,21 @@ func _rng() -> int:
 func d6() -> int:
 	return int(_rng() % 6) + 1
 
+## Dadi stregati [13.0]: con il cane di Gibson a bordo, quando si tira un solo dado se ne tirano due e si tiene
+## il peggiore. modo: "alto" (un numero alto è peggio), "basso" (basso è peggio), "pari" (dispari è peggio).
+func d6_per(l: Dictionary, modo: String) -> int:
+	var x := d6()
+	if l.is_empty() or not l.get("jinx", false):
+		return x
+	var y := d6()
+	var r := x
+	match modo:
+		"alto": r = maxi(x, y)
+		"basso": r = mini(x, y)
+		_: r = x if x % 2 == 1 else y
+	_log("Il cane di Gibson è a bordo di %s: due dadi (%d e %d), si tiene il peggiore (%d)." % [l["id"], x, y, r])
+	return r
+
 func _dadi(n: int) -> Array:
 	var r := []
 	for i in n:
@@ -62,9 +77,9 @@ func nuova(scen: int, seme: int = 0, facile := false) -> void:
 	for t in sc["razzi"]:
 		s["razzi"].append({"turno": int(t), "giro": 0, "assoluto": int(t) - int(sc["turno"])})
 	for g in Dati.GETTONI_QUOTA:
-		s["coppe"]["q"].append(g["id"])
+		_rimetti("q", g["id"])
 	for g in Dati.GETTONI_VELOCITA:
-		s["coppe"]["v"].append(g["id"])
+		_rimetti("v", g["id"])
 	# Upkeep pescati a caso e coperti
 	var sacco := []
 	for i in Dati.UPKEEP.size():
@@ -521,15 +536,25 @@ func _pesca(tipo: String, n: int) -> Array:
 	var coppa: Array = s["coppe"][tipo]
 	_mescola(coppa)
 	var r := []
+	# il cane di Gibson finisce nella tazza con i gettoni del suo Lancaster: se esce vale 0 [13.0]
+	var l := lanc(s["avv"].get("lanc", ""))
+	if not l.is_empty() and l.get("jinx", false) and n > 0 and int(_rng() % (coppa.size() + 1)) < n:
+		r.append("J")
+		n -= 1
+		_log("Dalla tazza esce il cane di Gibson: quel gettone vale 0.")
 	for i in mini(n, coppa.size()):
 		r.append(coppa.pop_back())
 	return r
 
+## Rimette un gettone nella tazza (il cane di Gibson non ci resta).
+func _rimetti(tipo: String, g: String) -> void:
+	if g != "" and g != "J":
+		s["coppe"][tipo].append(g)
+
 func _tieni_gettone(tipo: String, id: String, pescati: Array, sgancio: bool) -> void:
-	var coppa: Array = s["coppe"][tipo]
 	for g in pescati:
 		if g != id:
-			coppa.append(g)
+			_rimetti(tipo, g)
 	var x := Dati.gettone(id)
 	var nome := "Velocità" if tipo == "v" else "Quota"
 	if sgancio:
@@ -538,7 +563,7 @@ func _tieni_gettone(tipo: String, id: String, pescati: Array, sgancio: bool) -> 
 	else:
 		var vecchio: String = s["avv"][tipo]
 		if vecchio != "":
-			coppa.append(vecchio)
+			_rimetti(tipo, vecchio)
 		s["avv"][tipo] = id
 		_log("Gettone %s: %s (allo sgancio se ne pescheranno %d)." % [nome, x["av"], int(x["n"])])
 
@@ -636,7 +661,7 @@ func _applica_decisione(id: String, zona: String) -> void:
 		s["avv"]["anticipato"] = true
 		_log("%s sgancia dalla zona lontana: sgancio anticipato (-2)." % l["id"])
 	elif zona == "ravvicinata":
-		var d := d6()
+		var d := d6_per(l, "basso")
 		var t: Array = Dati.TARDIVO[d]
 		s["avv"]["tardivo"] = int(t[0])
 		s["avv"]["m"] += int(t[1])
@@ -661,9 +686,9 @@ func _fine_avvicinamento() -> void:
 		l["pos"] = "vicino"
 	for t in ["q", "v"]:
 		if s["avv"].get(t, "") != "":
-			s["coppe"][t].append(s["avv"][t])
+			_rimetti(t, s["avv"][t])
 		if s["avv"].get("sg_" + t, "") != "":
-			s["coppe"][t].append(s["avv"]["sg_" + t])
+			_rimetti(t, s["avv"]["sg_" + t])
 	var diga: String = s["avv"]["diga"]
 	s["avv"] = {"fatto": true, "diga": diga}
 
@@ -801,7 +826,7 @@ func _applica_evasione(id: String) -> void:
 	f["evaso"] = true
 	var t := lanc(f["bersaglio"])
 	if id == "v" or id == "q":
-		s["coppe"][id].append(s["avv"][id])
+		_rimetti(id, s["avv"][id])
 		s["avv"][id] = ""
 		s["avv"]["blocca_" + id] = true
 		_log("%s rinuncia al gettone %s per l'azione evasiva." % [t["id"], "Velocità" if id == "v" else "Quota"])
@@ -809,7 +834,7 @@ func _applica_evasione(id: String) -> void:
 		t["pos"] = "vicino"
 		s["avv"]["scorte"].erase(t["id"])
 		_log("La scorta %s si sgancia verso il Cerchio vicino." % t["id"])
-	var d := d6()
+	var d := d6_per(t, "pari")
 	_mostra_dadi("Azione evasiva", [d], [], "annullato" if d % 2 == 0 else "a segno")
 	if d % 2 == 0:
 		_log("Azione evasiva riuscita (dado %d): il colpo è annullato." % d)
@@ -838,50 +863,88 @@ func _lista(a: Array) -> String:
 
 # ================================================================ mitragliatrici (A5)
 ## Palloni di sbarramento sulla mappa del bersaglio (solo campagna): zona ravvicinata e risalita.
-func _controllo_palloni() -> void:
+## Palloni di sbarramento [7.9.5]: i segnalini stanno nella zona ravvicinata o nella casella della risalita
+## (con livello 2 o più uno in ciascuna); si scoprono quando i Lancaster arrivano sulla mappa del bersaglio.
+func prepara_palloni(d: String) -> void:
+	var x: Dictionary = s["dighe"][d]
+	var n: int = int(x.get("palloni", 0))
+	var box := []
+	if n >= 2:
+		box = ["ravvicinata", "salita"]
+	elif n == 1:
+		box = [["ravvicinata", "salita"][_rng() % 2]]
+	x["palloni_box"] = box
+	if not box.is_empty():
+		_log("Palloni di sbarramento alla %s: %s." % [Dati.DIGHE[d]["nome"], " e ".join(box.map(func(b): return "nella zona ravvicinata" if b == "ravvicinata" else "sulla risalita"))])
+
+func palloni_in(box: String) -> bool:
+	return box in dg().get("palloni_box", [])
+
+## Toglie un segnalino dei palloni (preferendo quello della casella indicata) e abbassa il livello.
+func _togli_pallone(box := "") -> void:
 	var d := dg()
+	var bx: Array = d.get("palloni_box", [])
+	if box != "" and box in bx:
+		bx.erase(box)
+	elif not bx.is_empty():
+		bx.remove_at(_rng() % bx.size())
+	d["palloni_box"] = bx
+	d["palloni"] = maxi(int(d.get("palloni", 0)) - 1, 0)
+
+## Pericolo dei palloni: dado pari danneggiato, dispari distrutto (salvataggio del veterano o del pilota).
+func _controllo_palloni(box: String) -> void:
 	var l := lanc(s["avv"].get("lanc", ""))
-	if int(d.get("palloni", 0)) <= 0 or l.is_empty() or not in_mappa(l):
-		return
-	var x := d6()
-	if x > int(d["palloni"]):
-		_log("Palloni di sbarramento: dado %d, %s passa fra i cavi." % [x, l["id"]])
+	if not palloni_in(box) or l.is_empty() or not in_mappa(l):
 		return
 	if l["equip"] == "veterano" or ruolo(l).begins_with("pilota"):
-		var v := d6()
+		var v := d6_per(l, "basso")
 		if v == 6:
-			_log("Palloni: %s schiva il cavo all'ultimo istante (salvataggio del veterano)." % l["id"])
+			_mostra_dadi("Palloni: salvataggio del veterano", [v], [], "salvo")
+			_log("Palloni di sbarramento: %s schiva il cavo all'ultimo istante (salvataggio, dado 6)." % l["id"])
 			return
-	var y := d6()
-	_mostra_dadi("Palloni di sbarramento", [x, y], [], "danneggiato" if y % 2 == 0 else "abbattuto")
+	var y := d6_per(l, "pari")
+	_mostra_dadi("Palloni di sbarramento", [y], [], "danneggiato" if y % 2 == 0 else "distrutto")
+	_log("Palloni di sbarramento: %s urta un cavo (dado %d): %s." % [l["id"], y, "danneggiato" if y % 2 == 0 else "distrutto"])
 	if y % 2 == 0:
 		_danneggia(l, "cavo dei palloni")
 	else:
-		_danneggia(l, "cavo dei palloni")
-		if l["pos"] != "distrutto":
-			_danneggia(l, "cavo dei palloni")
+		_distruggi_diretto(l, "cavo dei palloni")
+
+func _distruggi_diretto(l: Dictionary, causa: String) -> void:
+	_danneggia(l, causa)
+	if l["pos"] != "distrutto":
+		_danneggia(l, causa)
 
 func _f_mitragliatrici(dopo: String, posteriore: bool) -> void:
-	if (posteriore or s["avv"].get("zona", "") == "ravvicinata") and not s.get("palloni_fatto_" + s["fase"], false):
-		s["palloni_fatto_" + s["fase"]] = true
-		_controllo_palloni()
-		var lp := lanc(s["avv"].get("lanc", ""))
-		if lp.is_empty() or lp["pos"] == "distrutto":
-			s.erase("palloni_fatto_" + s["fase"])
+	# risalita: prima il mitragliere anteriore può sparare ai palloni della risalita, poi il pericolo dei palloni
+	if posteriore and palloni_in("salita") and not s["avv"].get("pal_salita", false):
+		s["avv"]["pal_salita"] = true
+		var la := lanc(s["avv"]["lanc"])
+		var x := d6_per(la, "alto")
+		var mod := -1 if ruolo(la) == "mitragliere_ant" else 0
+		_mostra_dadi("Mitragliatrice anteriore contro i palloni della risalita (riesce con 1 o meno)", [x], [], "colpiti!" if x + mod <= 1 else "nessun effetto")
+		if x + mod <= 1:
+			_togli_pallone("salita")
+			dg()["attivita"] = int(dg()["attivita"]) + 1
+			_log("La mitragliatrice anteriore di %s abbatte i palloni della risalita." % la["id"])
+		_controllo_palloni("salita")
+		if la["pos"] == "distrutto":
+			s["avv"].erase("pal_salita")
 			_fine_avvicinamento()
 			s["fase"] = "giro"
 			return
 	var d := dg()
 	var cat := []
-	for c in ["flak", "fari", "palloni"]:
+	for c in ["flak", "fari"]:
 		if int(d[c]) >= 1:
 			cat.append(c)
+	if palloni_in("salita" if posteriore else "ravvicinata") and s["avv"].get("zona", "") in ["ravvicinata", "salita", ""] and (posteriore or s["avv"].get("zona", "") == "ravvicinata"):
+		cat.append("palloni")
 	var l := lanc(s["avv"]["lanc"])
 	if cat.is_empty() or not in_mappa(l):
 		s.erase("mitra_bersaglio")
-		if posteriore:
-			_fine_avvicinamento()
-		s.erase("palloni_fatto_" + s["fase"])
+		if _dopo_mitragliatrici(posteriore):
+			return
 		s["fase"] = dopo
 		return
 	if not s.has("mitra_bersaglio"):
@@ -904,22 +967,39 @@ func _f_mitragliatrici(dopo: String, posteriore: bool) -> void:
 	var ridotto := false
 	var dd := []
 	for t in tiratori:
-		var x := d6()
+		var x := d6_per(t, "alto")
 		dd.append(x)
 		var mod := -1 if ruolo(t) == ("mitragliere_post" if posteriore else "mitragliere_ant") else 0
 		if x + mod <= livello and not ridotto:
 			ridotto = true
 	_mostra_dadi("Mitragliatrice %s contro %s (riesce con %d o meno)" % ["posteriore" if posteriore else "anteriore", _nome_dif(bersaglio), livello], dd, [], "colpita!" if ridotto else "nessun effetto")
 	if ridotto:
-		d[bersaglio] = int(d[bersaglio]) - 1
+		if bersaglio == "palloni":
+			_togli_pallone("salita" if posteriore else "ravvicinata")
+		else:
+			d[bersaglio] = int(d[bersaglio]) - 1
 		d["attivita"] = int(d["attivita"]) + 1
 		_log("Mitragliatrice %s (%s): la difesa %s scende a %d." % ["posteriore" if posteriore else "anteriore", _lista(dd), _nome_dif(bersaglio), int(d[bersaglio])])
 	else:
 		_log("Mitragliatrice %s (%s): nessun effetto su %s." % ["posteriore" if posteriore else "anteriore", _lista(dd), _nome_dif(bersaglio)])
-	if posteriore:
-		_fine_avvicinamento()
-	s.erase("palloni_fatto_" + s["fase"])
+	if _dopo_mitragliatrici(posteriore):
+		return
 	s["fase"] = dopo
+
+## Dopo le mitragliatrici: nella zona ravvicinata si risolvono i palloni; nella risalita finisce l'avvicinamento.
+## Vero se il Lancaster è stato distrutto (la fase è già stata cambiata).
+func _dopo_mitragliatrici(posteriore: bool) -> bool:
+	if not posteriore and s["avv"].get("zona", "") == "ravvicinata":
+		_controllo_palloni("ravvicinata")
+		var l := lanc(s["avv"].get("lanc", ""))
+		if l.is_empty() or l["pos"] == "distrutto":
+			_fine_avvicinamento()
+			s["fase"] = "giro"
+			return true
+	if posteriore:
+		s["avv"].erase("pal_salita")
+		_fine_avvicinamento()
+	return false
 
 func _nome_dif(c: String) -> String:
 	return {"flak": "contraerea", "fari": "fotoelettriche", "palloni": "palloni"}[c]
@@ -1051,10 +1131,10 @@ func _f_salita() -> void:
 			s["avv"]["m"] += 1
 	for t in ["q", "v"]:
 		if s["avv"].get(t, "") != "":
-			s["coppe"][t].append(s["avv"][t])
+			_rimetti(t, s["avv"][t])
 			s["avv"][t] = ""
 		if s["avv"].get("sg_" + t, "") != "":
-			s["coppe"][t].append(s["avv"]["sg_" + t])
+			_rimetti(t, s["avv"]["sg_" + t])
 			s["avv"]["sg_" + t] = ""
 	if s["avv"]["diga"] == "eder":
 		var m: int = int(s["avv"]["m"])
@@ -1166,7 +1246,10 @@ func _f_logoramento() -> void:
 				var x := d6()
 				var liv: int = int(d[c]) if c != "palloni" else 1
 				if x <= liv:
-					d[c] = int(d[c]) - 1
+					if c == "palloni":
+						_togli_pallone()
+					else:
+						d[c] = int(d[c]) - 1
 					_log("Logoramento delle difese: dado %d, %s scende a %d." % [x, _nome_dif(c), int(d[c])])
 				else:
 					_log("Logoramento delle difese: dado %d, %s resta a %d." % [x, _nome_dif(c), int(d[c])])
@@ -1385,7 +1468,7 @@ func _rientro(l: Dictionary, zona: String) -> void:
 		l["esito"] = "rientrato a Scampton dopo una lunga deviazione"
 	elif r2 <= 9:
 		if danneggiato(l):
-			var x := d6()
+			var x := d6_per(l, "basso")
 			if x <= 4:
 				l["pos"] = "perso"
 				l["esito"] = "precipitato sulla via del ritorno"

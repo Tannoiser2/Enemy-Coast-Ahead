@@ -13,6 +13,9 @@ var spost := Vector2.ZERO
 var _trascina := false
 var _da := Vector2.ZERO
 var _mosso := false
+var _tocchi := {}          # dita sullo schermo (iPad): indice -> posizione
+var _dist0 := 0.0
+var _zoom0 := 1.0
 var fonts := {}
 var tex := {}
 
@@ -113,6 +116,13 @@ func _gui_input(e: InputEvent) -> void:
 			queue_redraw()
 			accept_event()
 			return
+		if mb.device == InputEvent.DEVICE_ID_EMULATION:
+			# clic emulato dal tocco: lo spostamento lo fanno gli eventi di tocco
+			if mb.pressed:
+				_mosso = false
+			elif mb.button_index == MOUSE_BUTTON_LEFT and mb.double_click:
+				azzera_zoom()
+			return
 		if mb.button_index in [MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE] or (mb.button_index == MOUSE_BUTTON_LEFT and zoom > 1.0):
 			if mb.pressed:
 				_trascina = true
@@ -128,6 +138,40 @@ func _gui_input(e: InputEvent) -> void:
 			_mosso = true
 		spost += mm.relative
 		queue_redraw()
+	elif e is InputEventScreenTouch:
+		var st := e as InputEventScreenTouch
+		if st.pressed:
+			_tocchi[st.index] = st.position
+		else:
+			_tocchi.erase(st.index)
+		if _tocchi.size() == 2:
+			var pp: Array = _tocchi.values()
+			_dist0 = (pp[0] as Vector2).distance_to(pp[1])
+			_zoom0 = zoom
+			_mosso = true
+	elif e is InputEventScreenDrag:
+		var sd := e as InputEventScreenDrag
+		if _tocchi.has(sd.index):
+			var prima: Vector2 = _tocchi[sd.index]
+			_tocchi[sd.index] = sd.position
+			if _tocchi.size() >= 2:
+				# due dita: pizzico per lo zoom e spostamento con il punto medio
+				var pp: Array = _tocchi.values()
+				var d := (pp[0] as Vector2).distance_to(pp[1])
+				var centro := ((pp[0] as Vector2) + (pp[1] as Vector2)) * 0.5
+				if _dist0 > 10:
+					var ptela := a_tela(centro)
+					zoom = clampf(_zoom0 * d / _dist0, 1.0, 6.0)
+					calcola()
+					spost += centro - (origine + ptela * scala)
+				spost += (sd.position - prima) * 0.5
+				_mosso = true
+				queue_redraw()
+			elif zoom > 1.0:
+				spost += sd.position - prima
+				if sd.position.distance_to(prima) > 2:
+					_mosso = true
+				queue_redraw()
 	elif e is InputEventMagnifyGesture:
 		zoom = clampf(zoom * (e as InputEventMagnifyGesture).factor, 1.0, 6.0)
 		queue_redraw()

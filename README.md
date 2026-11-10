@@ -66,7 +66,7 @@ E la campagna:
   lavagna di pianificazione, mappa di volo, mappe del bersaglio di Möhne, Eder e Sorpe, tracce delle otto dighe.
 - Pedine originali dei Lancaster con i ritratti degli specialisti; segnalini (ricognizione, allerta, turni, squadre di
   terra, addestramento, modifiche, sicurezza) disegnati in italiano nelle caselle vere della mappa.
-- Vista che segue la fase (lavagna, mappa di volo, mappa del bersaglio) con zoom a rotella, trascinamento e doppio clic
+- Vista che segue la fase (lavagna, mappa di volo, mappa del bersaglio) con zoom a rotella o pizzico (anche su iPad), trascinamento con un dito o col mouse e doppio clic
   per tornare alla vista intera; a destra traccia della diga attaccata e dei turni d'attacco, decisioni con i dadi, e
   in basso le schede Diario (a macchina da scrivere) e Squadriglia. La colonna si allarga sugli schermi larghi.
 - Le decisioni si prendono con i pulsanti, con i tasti 1-9 o cliccando le pedine evidenziate; «Decidi tu» lascia

@@ -149,6 +149,16 @@ func _draw() -> void:
 	draw_texture_rect(tex["mappa_" + mappa], Rect2(0, 0, W, H), false)
 	_zone(L)
 	_sgancio(L)
+	# segnalini dei palloni di sbarramento (zona ravvicinata e risalita)
+	for b in p.dg().get("palloni_box", []):
+		var pos: Vector2
+		if b == "salita":
+			var rs: Rect2 = L["salita"]
+			pos = rs.position + Vector2(rs.size.x - 30, rs.size.y - 30)
+		else:
+			var z: Array = L["zone"]["ravvicinata"]
+			pos = z[0] + Vector2(0, -z[1] * 0.42).rotated(deg_to_rad(L["angolo"]))
+		segnalino(pos, 52, ["PALLONI"], Color(0.35, 0.35, 0.4), Color.WHITE, L["angolo"] if b != "salita" else 0.0)
 	if L.has("michel") and p.s["avv"].has("lanc") and p.s["avv"].get("diga", "") == "eder":
 		var r: Rect2 = L["michel"]
 		testo("grassetto", "segni M ora: %d" % int(p.s["avv"]["m"]), Vector2(r.position.x + r.size.x * 0.5, r.end.y + 16), 19, Color(1, 0.8, 0.4))

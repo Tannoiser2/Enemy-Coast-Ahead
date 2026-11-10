@@ -87,11 +87,12 @@ sono ricostruite in modo coerente con le etichette originali tradotte; anche la 
 specialisti proposti per ciascun Lancaster seguono la lettura più probabile. Tutti i numeri delle tabelle vengono dai
 Player Aid e dalla mappa del modulo.
 
-Per la campagna mancano la terza parte del regolamento e la scheda dello scenario 10: le regole vengono dalle tabelle
-P1-P10 e dalla lavagna di pianificazione (Mission Planning Blotter). Sono ricostruiti in particolare i livelli di
-addestramento iniziali (reclute 0, esperti 1, veterani 2 in ogni specialità), l'assegnazione automatica di equipaggi,
-specialisti e Upkeep ai Lancaster pronti (i migliori equipaggi per primi) e il rapporto finale (rv delle dighe aperte
-e perdite, come nello scenario 9).
+La campagna (scenario 10) segue la terza parte del regolamento e la scheda dello scenario: addestramento che parte
+da 0, acqua delle dighe «in salita», segnalini «a riposo» per tipo e specialità, doppio turno (requisizioni,
+modifiche, preparazione del volo), ordine d'attacco senza radio VHF, cane di Gibson, bersaglio di riserva obbligatorio
+e rapporto in cinque passi con la commissione d'inchiesta. Non sono giocabili il secondo raid (il passo 5 dice solo se
+sarebbe possibile) e la regola opzionale dell'alta quota. Scelte di conversione: senza VHF un messaggio a un'onda
+cambia la rotta solo se lo ricevono tutti i Lancaster; nel controllo degli equipaggi restano a terra prima le reclute.
 
 ## Sviluppo
 

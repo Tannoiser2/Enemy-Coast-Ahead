@@ -167,7 +167,7 @@ func _rendi_indipendente(l: Dictionary) -> void:
 ## Il cane di Gibson non entra nei riquadri del rientro e dei dispersi: passa a un altro Lancaster in volo [13.0].
 func _sposta_jinx() -> void:
 	for l in s["lanc"]:
-		if l.get("jinx", false) and l["pos"] in ["rtb", "smarrito"]:
+		if l.get("jinx", false) and l["pos"] in ["rtb", "smarrito", "distrutto", "perso"]:
 			var altri: Array = s["lanc"].filter(func(x): return x["pos"] == "volo" and x["id"] != l["id"])
 			l.erase("jinx")
 			if altri.is_empty():
@@ -391,6 +391,27 @@ func _esegui_radio(g: String, diga: String) -> void:
 		s["radio_fatti"] = []
 	s["radio_fatti"].append(g)
 	if diga == "annulla":
+		return
+	if senza_vhf() and g.begins_with("O:") and lanc_gruppo(g).size() > 1:
+		# senza VHF il messaggio va a ogni Lancaster singolarmente [10.4.4]: l'onda cambia rotta solo se lo ricevono tutti
+		var esiti := []
+		var tutti := true
+		for l in lanc_gruppo(g):
+			var dd := _dadi(3) if ruolo(l) == "marconista" else _dadi(2)
+			if dd.size() == 3:
+				dd.sort()
+				dd = [dd[1], dd[2]]
+			var r: int = dd[0] + dd[1]
+			esiti.append("%s %d" % [l["id"], r])
+			if r < 8:
+				tutti = false
+		_mostra_dadi("Radiotelegrafia senza VHF", [], [], "ricevuto" if tutti else "non da tutti")
+		if tutti:
+			_imposta_bersaglio(g, diga)
+			_log("Senza VHF, messaggio a ogni Lancaster (%s): ricevuto da tutti, %s punta sulla %s." % [", ".join(esiti), nome_gruppo(g), Dati.DIGHE[diga]["nome"]])
+		else:
+			s["radio_fatti"].erase(g)
+			_log("Senza VHF, messaggio a ogni Lancaster (%s): non tutti lo ricevono in chiaro, l'onda mantiene la rotta." % ", ".join(esiti))
 		return
 	var bonus := 0
 	while true:
@@ -659,17 +680,16 @@ func _v_piazza() -> void:
 			if nv > 0:
 				n += nv
 				_log("%s: %d pericolo in più per i razzi Very." % [Dati.NOME_ZONA[z], nv])
-		if z == "costa_inglese" and int(s.get("extra_costa", 0)) > 0:
+		if z == "costa_inglese" and int(s.get("extra_costa", 0)) > 0 and int(s.get("turno_volo", 1)) == 1:
 			n += int(s["extra_costa"])
 			_log("Aerei poco pronti: %d pericoli in più sulla costa inglese." % int(s["extra_costa"]))
-			s["extra_costa"] = 0
 		for k in n:
 			var i := _pesca_pericolo(info[1])
 			s["pendenti"].append({"g": gs[k % gs.size()], "colore": info[1], "i": i, "zona": z})
 		for g in gs:
 			for l in lanc_gruppo(g):
 				if l.get("jinx", false):
-					s["pendenti"].append({"g": g, "colore": info[1], "i": _pesca_pericolo(info[1]), "zona": z})
+					s["pendenti"].append({"g": g, "colore": info[1], "i": _pesca_pericolo(info[1]), "zona": z, "diretto": l["id"]})
 					_log("Il cane di Gibson è a bordo di %s: un pericolo in più." % l["id"])
 		_log("%s: %d pericoli." % [Dati.NOME_ZONA[z], n])
 	s["evita_zone_fatte"] = []
@@ -765,6 +785,10 @@ func _v_risolvi() -> void:
 			var conta := {}
 			var k := 0
 			for p in per_g[g]:
+				if p.has("diretto") and vivo(lanc(p["diretto"])):
+					# il pericolo del cane di Gibson va dritto al suo Lancaster, fuori dai limiti [13.0]
+					s["coda"].append({"l": p["diretto"], "colore": p["colore"], "i": p["i"], "g": g})
+					continue
 				var l: Dictionary = m[k % m.size()]
 				k += 1
 				if conta.get(l["id"], 0) >= 3:

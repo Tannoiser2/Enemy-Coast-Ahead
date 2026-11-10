@@ -26,8 +26,9 @@ func nuova_campagna(seme: int = 0) -> void:
 		# pianificazione
 		"piano": 1, "rp": 60, "richieste": 0, "extra": 0, "rischio": 0,
 		"squadre": [], "squadre_libere": ["s1", "s2", "s3", "s4", "s5", "s6"],
-		"equipaggi": {"recluta": 0, "esperto": 0, "veterano": 0}, "riposati": {"recluta": false, "esperto": false, "veterano": false},
-		"addestramento": {"recluta": {"nav": 0, "quota": 0, "bomba": 0}, "esperto": {"nav": 1, "quota": 1, "bomba": 1}, "veterano": {"nav": 2, "quota": 2, "bomba": 2}},
+		"equipaggi": {"recluta": 0, "esperto": 0, "veterano": 0}, "riposati": {"recluta": {"nav": false, "quota": false, "bomba": false}, "esperto": {"nav": false, "quota": false, "bomba": false}, "veterano": {"nav": false, "quota": false, "bomba": false}},
+		"addestramento": {"recluta": {"nav": 0, "quota": 0, "bomba": 0}, "esperto": {"nav": 0, "quota": 0, "bomba": 0}, "veterano": {"nav": 0, "quota": 0, "bomba": 0}},
+		"perdite_rp": 0, "schianti": 0,
 		"aerei": [], "aerei_liberi": [], "upkeep_scorta": [], "elite": [], "elite_sacco": [],
 		"vhf": false, "aldis": false, "dann": false, "sei": {"altimetro": 0, "cabina": 0},
 		"sicurezza": [], "sicurezza_usati": [], "spia": false, "quarantena": false, "giri_extra": 0,
@@ -35,7 +36,7 @@ func nuova_campagna(seme: int = 0) -> void:
 		"dediche": {}, "ultimo_turno_req": 0, "requisiti_turno": 0,
 	}
 	for d in Dati.DIGHE:
-		s["dighe"][d] = {"acqua": 4, "recon": 0, "attivita": 0, "flak": 0, "fari": 0, "palloni": 0, "upkeep": [],
+		s["dighe"][d] = {"acqua": 2, "recon": 0, "attivita": 0, "flak": 0, "fari": 0, "palloni": 0, "upkeep": [],
 			"breccia": false, "caccia_vicino": false, "flak_iniziale": 0, "visibilita": "sereno", "vista": false}
 	for g in Dati.GETTONI_QUOTA:
 		s["coppe"]["q"].append(g["id"])
@@ -99,6 +100,24 @@ func _mod_rientro(l: Dictionary, zona: String) -> Array:
 		m.append(["ricognizione delle zone (%d)" % t, 1])
 	return m
 
+## Segnalini «a riposo»: uno per tipo di equipaggio e specialità [10.3.2].
+func riposato(e: String, c: String) -> bool:
+	var r = s["riposati"][e]
+	return r.get(c, false) if r is Dictionary else bool(r)
+
+func imposta_riposo(e: String, c: String, v: bool) -> void:
+	if not (s["riposati"][e] is Dictionary):
+		s["riposati"][e] = {"nav": false, "quota": false, "bomba": false}
+	s["riposati"][e][c] = v
+
+func conta_riposati() -> int:
+	var n := 0
+	for e in ["recluta", "esperto", "veterano"]:
+		for c in ["nav", "quota", "bomba"]:
+			if riposato(e, c):
+				n += 1
+	return n
+
 # ================================================================ squadre di terra
 func squadra(id: String) -> Dictionary:
 	for q in s["squadre"]:
@@ -124,16 +143,19 @@ func dedicate(box: String) -> Array:
 	return s["squadre"].filter(func(q): return q.get("dedicata", "") == box)
 
 ## Una squadra in «doppio turno» (trasferita nella stessa casella) conta due volte.
+## Doppio turno nelle requisizioni [10.1.4]: la squadra vale il maneggio normale più quello affaticato.
 func maneggio_box(box: String) -> int:
 	var t := 0
 	for q in dedicate(box):
-		t += int(valori(q["id"])[0]) * (2 if q.get("doppio", false) else 1)
+		t += int(valori(q["id"])[0])
+		if q.get("doppio", false):
+			t += int(dati_squadra(q["id"])["fresco"][0])
 	return t
 
 func erk_box(box: String) -> int:
 	var t := 0
 	for q in dedicate(box):
-		t += int(valori(q["id"])[1]) * (2 if q.get("doppio", false) else 1)
+		t += int(valori(q["id"])[1])
 	return t
 
 func _sc_dediche(box: String) -> Array:
@@ -144,8 +166,8 @@ func _sc_dediche(box: String) -> Array:
 			sc.append(_sc("dedica:%s:%s" % [q["id"], box], "%s: dedica la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], _desc_squadra(q["id"]).capitalize() + "."))
 		elif q["dedicata"] != box and not q.get("stanca", false):
 			sc.append(_sc("trasferisci:%s:%s" % [q["id"], box], "%s: trasferisci la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], "Ora dedicata a: %s. Il trasferimento la affatica per sempre." % _min(BOX.get(q["dedicata"], q["dedicata"]))))
-		elif q["dedicata"] == box and not q.get("stanca", false) and not q.get("doppio", false):
-			sc.append(_sc("trasferisci:%s:%s" % [q["id"], box], "%s: doppio turno per la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], "Trasferita nella stessa casella: si affatica per sempre, ma in questo turno conta due volte."))
+		elif box == "requisizioni" and q["dedicata"] == box and not q.get("stanca", false) and not q.get("doppio", false):
+			sc.append(_sc("trasferisci:%s:%s" % [q["id"], box], "%s: doppio turno per la %s" % [BOX[box], dati_squadra(q["id"])["nome"]], "Si affatica per sempre, ma in questo turno vale il maneggio normale più quello affaticato."))
 	return sc
 
 func _desc_squadra(id: String) -> String:
@@ -187,6 +209,7 @@ func _passo() -> void:
 		"p_add": _p_addestramento()
 		"p_mod": _p_modifiche()
 		"p_mod_tiri": _p_modifiche_tiri()
+		"p_add_tiri": _p_addestramento_tiri()
 		"p_rec": _p_ricognizione()
 		"p_lancio": _p_lancio()
 		"f_aerei": _f_controllo("aerei")
@@ -405,8 +428,15 @@ func _p_addestramento() -> void:
 			_log("Addestramento extra (5 RP): una specialità in più e un nuovo specialista; rischio +1.")
 			_pesca_elite("addestramento extra")
 		elif id == "via":
-			_esegui_addestramento()
-			s["fase"] = "p_mod"
+			var coda := []
+			for c in s["add_scelte"]:
+				for e in ["recluta", "esperto", "veterano"]:
+					if int(s["equipaggi"][e]) > 0:
+						coda.append([c, e])
+			s["add_coda"] = coda
+			s["add_scelte"] = []
+			s["add_extra"] = false
+			s["fase"] = "p_add_tiri"
 			return
 		else:
 			s["add_scelte"].append(id)
@@ -461,35 +491,64 @@ func _mod_addestramento_testo() -> String:
 		p.append("-1 senza squadra dedicata")
 	return "Modificatori: " + (", ".join(p) if not p.is_empty() else "nessuno") + " (+1 navigazione con ricognizione in tutte le zone ostili, +1 quota con le luci Aldis, +1 puntamento con il mirino Dann)."
 
-func _esegui_addestramento() -> void:
-	for c in s["add_scelte"]:
-		for e in ["recluta", "esperto", "veterano"]:
-			if int(s["equipaggi"][e]) <= 0:
-				continue
-			var x := d6()
-			if s["riposati"][e] and x <= 2:
-				var y := d6()
-				_log("Equipaggi %s riposati: ritirano il %d (nuovo %d)." % [PLURALE[e], x, y])
-				x = y
-				s["riposati"][e] = false
+## Un dado per ogni tipo di equipaggio e specialità; con il segnalino «a riposo» si può ritirare [10.3.2].
+func _p_addestramento_tiri() -> void:
+	var id := _prendi_scelta("p_add_rip")
+	if s.has("add_tiro"):
+		var at: Dictionary = s["add_tiro"]
+		s.erase("add_tiro")
+		var x: int = int(at["x"])
+		if id == "ritira":
+			imposta_riposo(at["e"], at["c"], false)
+			var y := d6()
+			_log("Gli equipaggi %s a riposo ritirano il %d: esce %d." % [PLURALE[at["e"]], x, y])
+			x = y
+		_applica_addestramento(at["c"], at["e"], x)
+	while not s["add_coda"].is_empty():
+		var ce: Array = s["add_coda"].pop_front()
+		var c: String = ce[0]
+		var e: String = ce[1]
+		if int(s["equipaggi"][e]) <= 0:
+			continue
+		var x := d6()
+		if riposato(e, c):
 			var r: int = clampi(x + _mod_addestramento(c), 1, 7)
-			var t: Array = Dati.ADDESTRA[e][r - 1]
-			var prima := int(s["addestramento"][e][c])
-			var mx := 7 if c != "bomba" else 8
-			s["addestramento"][e][c] = mini(prima + int(t[0]), mx)
-			_mostra_dadi("Addestramento %s, %s" % [Dati.NOME_EQUIPAGGIO[e].to_lower(), Dati.SPECIALITA[c].to_lower()], [x], [], "+%d" % int(t[0]))
-			_log("Addestramento %s (%s): dado %d, risultato %d: +%d (ora %d)." % [Dati.SPECIALITA[c].to_lower(), PLURALE[e], x, r, int(t[0]), int(s["addestramento"][e][c])])
-			_effetti_addestramento(String(t[1]), e)
-	s["add_scelte"] = []
-	s["add_extra"] = false
+			var t2: Array = Dati.ADDESTRA[e][r - 1]
+			s["add_tiro"] = {"c": c, "e": e, "x": x}
+			_mostra_dadi("Addestramento %s, %s" % [Dati.NOME_EQUIPAGGIO[e].to_lower(), Dati.SPECIALITA[c].to_lower()], [x], [], "+%d %s" % [int(t2[0]), String(t2[1])])
+			_chiedi("p_add_rip", "Addestramento: %s, %s" % [Dati.SPECIALITA[c].to_lower(), PLURALE[e]],
+				"Dado %d (risultato %d): +%d livelli%s. Gli equipaggi %s sono a riposo in questa specialità: puoi girare il segnalino e ritirare." % [x, r, int(t2[0]), _desc_effetti(String(t2[1])), PLURALE[e]],
+				[_sc("tieni", "Tieni il risultato"), _sc("ritira", "Gira il segnalino «a riposo» e ritira")])
+			return
+		_applica_addestramento(c, e, x)
 	_controlla_wallis()
+	s["fase"] = "p_mod"
 
-func _effetti_addestramento(ef: String, e: String) -> void:
+func _desc_effetti(ef: String) -> String:
+	var p := []
+	if ef.contains("x"): p.append("danno o schianto")
+	if ef.contains("c"): p.append("schianto")
+	if ef.contains("d"): p.append("aereo danneggiato")
+	if ef.contains("R"): p.append("riposo")
+	if ef.contains("E"): p.append("specialista")
+	return (", " + ", ".join(p)) if not p.is_empty() else ""
+
+func _applica_addestramento(c: String, e: String, x: int) -> void:
+	var r: int = clampi(x + _mod_addestramento(c), 1, 7)
+	var t: Array = Dati.ADDESTRA[e][r - 1]
+	var prima := int(s["addestramento"][e][c])
+	var mx := 7 if c != "bomba" else 8
+	s["addestramento"][e][c] = mini(prima + int(t[0]), mx)
+	_mostra_dadi("Addestramento %s, %s" % [Dati.NOME_EQUIPAGGIO[e].to_lower(), Dati.SPECIALITA[c].to_lower()], [x], [], "+%d" % int(t[0]))
+	_log("Addestramento %s (%s): dado %d, risultato %d: +%d (ora %d)." % [Dati.SPECIALITA[c].to_lower(), PLURALE[e], x, r, int(t[0]), int(s["addestramento"][e][c])])
+	_effetti_addestramento(String(t[1]), e, c)
+
+func _effetti_addestramento(ef: String, e: String, c: String) -> void:
 	if ef.contains("x"):
 		ef = ef.replace("x", "d" if d6() % 2 == 0 else "c")
-	if ef.contains("R"):
-		s["riposati"][e] = true
-		_log("Gli equipaggi %s sono stanchi: riposo (potranno ritirare un dado basso, +1 al controllo degli equipaggi)." % PLURALE[e])
+	if ef.contains("R") and not riposato(e, c):
+		imposta_riposo(e, c, true)
+		_log("Gli equipaggi %s sono a riposo in %s: potranno ritirare un dado di questa specialità (+1 al controllo degli equipaggi)." % [PLURALE[e], Dati.SPECIALITA[c].to_lower()])
 	if ef.contains("d"):
 		for a in s["aerei"]:
 			if int(a["danni"]) == 0:
@@ -497,18 +556,33 @@ func _effetti_addestramento(ef: String, e: String) -> void:
 				_log("Incidente in addestramento: il Lancaster %s è danneggiato." % a["id"])
 				break
 	if ef.contains("c"):
+		var aereo := {}
 		for a in s["aerei"]:
 			if int(a["danni"]) == 0:
-				s["aerei"].erase(a)
-				_log("Schianto in addestramento: il Lancaster %s è perduto." % a["id"])
+				aereo = a
 				break
-		if d6() % 2 == 0:
-			_pesca_elite("dopo lo schianto")
-		elif int(s["equipaggi"][e]) > 0:
-			s["equipaggi"][e] = int(s["equipaggi"][e]) - 1
-			_log("Un equipaggio %s non c'è più." % Dati.NOME_EQUIPAGGIO[e].to_lower())
+		if aereo.is_empty():
+			# nessun bombardiere integro: l'equipaggio muore, nessun aereo distrutto, nessun dado [10.3.2]
+			_perdi_equipaggio(e, "schianto in addestramento")
+		else:
+			s["aerei"].erase(aereo)
+			s["schianti"] = int(s.get("schianti", 0)) + 1
+			_log("Schianto in addestramento: il Lancaster %s è perduto." % aereo["id"])
+			var z := d6()
+			if z % 2 == 0:
+				_log("Dado %d: l'equipaggio si salva." % z)
+				_pesca_elite("dopo lo schianto")
+			else:
+				_perdi_equipaggio(e, "schianto in addestramento (dado %d)" % z)
 	if ef.contains("E"):
 		_pesca_elite("addestramento")
+
+func _perdi_equipaggio(e: String, perche: String) -> void:
+	if int(s["equipaggi"][e]) <= 0:
+		return
+	s["equipaggi"][e] = int(s["equipaggi"][e]) - 1
+	s["perdite_rp"] = int(s.get("perdite_rp", 0)) + int(Dati.COSTO_EQUIPAGGIO[e])
+	_log("Un equipaggio %s non c'è più (%s)." % [Dati.NOME_EQUIPAGGIO[e].to_lower(), perche])
 
 func _controlla_wallis() -> void:
 	var t := 0
@@ -574,18 +648,22 @@ func _p_modifiche_tiri() -> void:
 	if id != "" and s.has("mod_tiro"):
 		var mt: Dictionary = s["mod_tiro"]
 		if id.begins_with("ritira:"):
-			var q := squadra(id.substr(7))
-			var erk := int(valori(q["id"])[1])
-			_affatica(q)
+			# doppio turno [10.4.3]: le squadre girate tirano altri dadi pari al loro erk affaticato; i sei si sommano
+			var ids: Array = [id.substr(7)]
+			if id == "ritira:tutte":
+				ids = dedicate(mt["box"]).filter(func(q): return not q.get("stanca", false)).map(func(q): return q["id"])
 			var dd: Array = mt["dadi"]
-			var rit := 0
-			for i in dd.size():
-				if rit < erk and int(dd[i]) != 6:
-					dd[i] = d6()
-					rit += 1
-			mt["ritirate"] = mt.get("ritirate", []) + [q["id"]]
-			_mostra_dadi("%s (ritiro)" % BOX[mt["box"]], dd, [], "%d sei" % dd.count(6))
-			_log("La %s ritira %d dadi e si affatica: %s." % [dati_squadra(q["id"])["nome"], rit, _lista(dd)])
+			var nuovi := []
+			for qid in ids:
+				var q := squadra(qid)
+				_affatica(q)
+				for i in int(dati_squadra(qid)["stanco"][1]):
+					nuovi.append(d6())
+				_log("Doppio turno della %s: si affatica." % dati_squadra(qid)["nome"])
+			dd.append_array(nuovi)
+			mt["doppio_fatto"] = true
+			_mostra_dadi("%s (doppio turno)" % BOX[mt["box"]], nuovi, [], "%d sei in tutto" % dd.count(6))
+			_log("Dadi in più: %s. In tutto %d sei." % [_lista(nuovi), dd.count(6)])
 			if not _offri_ritiro(mt):
 				_applica_modifica(mt)
 			return
@@ -618,17 +696,21 @@ func _serve(box: String) -> int:
 func _offri_ritiro(mt: Dictionary) -> bool:
 	var box: String = mt["box"]
 	var dd: Array = mt["dadi"]
-	if dd.count(6) >= _serve(box) or dd.count(6) == dd.size():
+	if dd.count(6) >= _serve(box):
+		return false
+	if mt.get("doppio_fatto", false):
 		return false
 	var sc := []
-	for q in dedicate(box):
-		if not q.get("stanca", false) and not q["id"] in mt.get("ritirate", []):
-			sc.append(_sc("ritira:" + q["id"], "Ritira i dadi erk della %s" % dati_squadra(q["id"])["nome"], "La squadra si affatica per sempre (%s)." % _desc_squadra(q["id"])))
+	var fresche: Array = dedicate(box).filter(func(q): return not q.get("stanca", false))
+	for q in fresche:
+		sc.append(_sc("ritira:" + q["id"], "Doppio turno della %s" % dati_squadra(q["id"])["nome"], "Si affatica per sempre e tira altri %d dadi." % int(dati_squadra(q["id"])["stanco"][1])))
+	if fresche.size() > 1:
+		sc.append(_sc("ritira:tutte", "Doppio turno di tutte le squadre fresche", "Si affaticano tutte; ognuna tira dadi pari al suo erk affaticato."))
 	if sc.is_empty():
 		return false
 	sc.append(_sc("tieni", "Tieni il risultato"))
 	s["mod_tiro"] = mt
-	_chiedi("p_mod_rit", BOX[box], "Dadi: %s, %d sei (ne servono %d). Puoi ritirare i dadi erk di una squadra girandola sul lato affaticato." % [_lista(dd), dd.count(6), _serve(box)], sc)
+	_chiedi("p_mod_rit", BOX[box], "Dadi: %s, %d sei (ne servono %d). Con il doppio turno le squadre fresche dedicate tirano altri dadi (una volta per modifica in questo turno), senza spendere RP." % [_lista(dd), dd.count(6), _serve(box)], sc)
 	return true
 
 func _applica_modifica(mt: Dictionary) -> void:
@@ -737,15 +819,28 @@ func _p_lancio() -> void:
 		 _sc("attendi", "Ancora due settimane di preparazione", "Più addestramento e ricognizione, ma il rischio per la sicurezza cresce e l'acqua delle dighe può calare.")])
 
 # ================================================================ preparazione del volo (11.0)
+## Passi 1 e 2 della preparazione del volo [11.1, 11.2]. Dopo il tiro si può annullarlo e ritirare
+## facendo fare il doppio turno a una squadra dedicata fresca (una volta per passo).
 func _f_controllo(box: String) -> void:
 	var id := _prendi_scelta("f_" + box)
-	if id != "" and id != "via":
+	if id.begins_with("ritira:"):
+		var q := squadra(id.substr(7))
+		_affatica(q)
+		_log("Doppio turno: la %s si affatica e il controllo si ripete." % dati_squadra(q["id"])["nome"])
+		s["f_ritirato_" + box] = true
+		s.erase("f_tiro")
+		id = "via"
+	elif id == "tieni":
+		_esegui_controllo(box, s["f_tiro"])
+		s.erase("f_tiro")
+		return
+	elif id != "" and id != "via":
 		_applica_dedica(id)
 	if id != "via":
-		var sc := _sc_dediche(box).filter(func(x): return x["id"].begins_with("dedica"))
+		var sc := _sc_dediche(box)
 		sc.append(_sc("via", "Esegui il controllo"))
 		var t := "Controllo degli aerei: qualche Lancaster potrebbe non essere pronto." if box == "aerei" else "Controllo degli Upkeep: qualche Upkeep potrebbe non essere montato."
-		_chiedi("f_" + box, BOX[box], t + " +2 per ogni squadra fresca dedicata, +1 per ogni squadra affaticata%s." % (", -1 per la spia" if s["spia"] else ""), sc)
+		_chiedi("f_" + box, BOX[box], t + " +2 per ogni squadra fresca dedicata, +1 per ogni squadra affaticata%s. Dopo il tiro, una squadra fresca dedicata può fare il doppio turno per ritirare." % (", -1 per la spia" if s["spia"] else ""), sc)
 		return
 	var mod := 0
 	for q in dedicate(box):
@@ -754,10 +849,29 @@ func _f_controllo(box: String) -> void:
 		mod -= 1
 	var dd := _dadi(2)
 	var r: int = dd[0] + dd[1] + mod
-	var fermi := 5 if r <= 4 else (3 if r <= 6 else (2 if r <= 9 else (1 if r <= 11 else 0)))
-	if box == "ordigni":
-		fermi = 4 if r <= 4 else (3 if r <= 6 else (2 if r <= 9 else (1 if r <= 11 else 0)))
+	var fermi := _fermi_controllo(box, r)
 	_mostra_dadi(BOX[box], dd, [], "%d: %d fermi" % [r, fermi])
+	var tiro := {"dd": dd, "mod": mod, "r": r, "fermi": fermi}
+	var fresche: Array = dedicate(box).filter(func(q): return not q.get("stanca", false))
+	if fermi > 0 and not fresche.is_empty() and not s.get("f_ritirato_" + box, false):
+		s["f_tiro"] = tiro
+		var sc := [_sc("tieni", "Tieni il risultato")]
+		for q in fresche:
+			sc.append(_sc("ritira:" + q["id"], "Doppio turno della %s e ritira" % dati_squadra(q["id"])["nome"], "La squadra si affatica (il modificatore si ricalcola)."))
+		_chiedi("f_" + box, BOX[box], "Tiro %d%+d = %d: %d %s." % [dd[0] + dd[1], mod, r, fermi, "Lancaster restano a terra" if box == "aerei" else "Upkeep non montati"], sc)
+		return
+	_esegui_controllo(box, tiro)
+
+func _fermi_controllo(box: String, r: int) -> int:
+	if box == "ordigni":
+		return 4 if r <= 4 else (3 if r <= 6 else (2 if r <= 9 else (1 if r <= 11 else 0)))
+	return 5 if r <= 4 else (3 if r <= 6 else (2 if r <= 9 else (1 if r <= 11 else 0)))
+
+func _esegui_controllo(box: String, tiro: Dictionary) -> void:
+	var dd: Array = tiro["dd"]
+	var mod: int = int(tiro["mod"])
+	var r: int = int(tiro["r"])
+	var fermi: int = int(tiro["fermi"])
 	if box == "aerei":
 		var integri: Array = s["aerei"].filter(func(a): return int(a["danni"]) == 0)
 		_mescola(integri)
@@ -767,7 +881,7 @@ func _f_controllo(box: String) -> void:
 			if int(a["danni"]) > 0:
 				a["fermo"] = true
 		s["extra_costa"] = 2 if r <= 6 else (1 if r <= 11 else 0)
-		_log("Controllo degli aerei (%d%+d = %d): %d Lancaster restano a terra%s." % [dd[0] + dd[1], mod, r, fermi, (", %d pericoli in più sulla costa inglese" % int(s["extra_costa"])) if int(s["extra_costa"]) > 0 else ""])
+		_log("Controllo degli aerei (%d%+d = %d): %d Lancaster restano a terra%s." % [dd[0] + dd[1], mod, r, fermi, (", %d pericoli in più sulla costa inglese nel primo turno di volo" % int(s["extra_costa"])) if int(s["extra_costa"]) > 0 else ""])
 		s["fase"] = "f_ordigni"
 	else:
 		for i in mini(fermi, s["upkeep_scorta"].size()):
@@ -775,22 +889,22 @@ func _f_controllo(box: String) -> void:
 		_log("Controllo degli Upkeep (%d%+d = %d): %d Upkeep non sono montati (restano %d)." % [dd[0] + dd[1], mod, r, fermi, s["upkeep_scorta"].size()])
 		s["fase"] = "f_equip"
 
+## Passo 3 [11.3]: +1 per ogni segnalino «a riposo»; restano a terra prima le reclute.
 func _f_equipaggi() -> void:
-	var mod := -int(s["giri_extra"])
-	for e in s["riposati"]:
-		if s["riposati"][e]:
-			mod += 1
+	var mod := -int(s["giri_extra"]) + conta_riposati()
 	var dd := _dadi(2)
 	var r: int = dd[0] + dd[1] + mod
 	var fermi := 4 if r <= 4 else (3 if r <= 6 else (2 if r <= 8 else (1 if r <= 10 else 0)))
 	_mostra_dadi("Controllo degli equipaggi", dd, [], "%d: %d fermi" % [r, fermi])
+	var chi := []
 	for i in fermi:
 		var tipi := ["recluta", "esperto", "veterano"].filter(func(e): return int(s["equipaggi"][e]) > 0)
 		if tipi.is_empty():
 			break
-		var e: String = tipi[_rng() % tipi.size()]
+		var e: String = tipi[0]
 		s["equipaggi"][e] = int(s["equipaggi"][e]) - 1
-	_log("Controllo degli equipaggi (%d%+d = %d): %d equipaggi non possono volare." % [dd[0] + dd[1], mod, r, fermi])
+		chi.append(Dati.NOME_EQUIPAGGIO[e].to_lower())
+	_log("Controllo degli equipaggi (%d%+d = %d): %d equipaggi non possono volare%s." % [dd[0] + dd[1], mod, r, fermi, (" (" + ", ".join(chi) + ": restano a terra i meno addestrati)") if not chi.is_empty() else ""])
 	s["fase"] = "f_brief"
 
 func _f_briefing() -> void:
@@ -882,7 +996,10 @@ func _f_sortita() -> void:
 			if liberi.size() >= 2:
 				sc.append(_sc("onda", "Forma un'onda", "Almeno due Lancaster con lo stesso bersaglio; volano insieme e possono entrare coordinati."))
 			if not liberi.is_empty():
-				sc.append(_sc("isolato", "Manda un Lancaster da solo"))
+				if s["vhf"] or (liberi.size() == 1 and st["gruppi"].is_empty()):
+					sc.append(_sc("isolato", "Manda un Lancaster da solo"))
+				elif liberi.size() == 1:
+					sc.append(_sc("unisci", "Aggiungi %s all'ultima onda" % liberi[0], "Senza radio VHF nessun Lancaster può volare da solo: tutti in onda, con un ordine d'attacco."))
 				sc.append(_sc("auto", "Piano automatico per i restanti", "Onde da tre verso le dighe con più rv e meno difese note."))
 			sc.append(_sc("riserva", "Bersaglio di riserva: %s" % Dati.DIGHE[s["riserva"]]["nome"], "Cambia il bersaglio di riserva della squadriglia."))
 			if not st["assegnati"].is_empty():
@@ -890,7 +1007,10 @@ func _f_sortita() -> void:
 			_chiedi("f_sortita", "Sortita", "Lancaster pronti: %d. %s" % [liberi.size(), _riassunto_onde()], sc)
 		"primario", "secondario", "riserva", "isolato_primario":
 			var titolo: String = {"primario": "Bersaglio principale dell'onda", "secondario": "Bersaglio secondario dell'onda", "riserva": "Bersaglio di riserva", "isolato_primario": "Bersaglio del Lancaster"}[st["passo"]]
+			var usate := _bersagli_usati()
 			for d in ["mohne", "eder", "sorpe", "ennepe", "bever", "lister", "diemel", "henne"]:
+				if st["passo"] == "riserva" and d in usate and usate.size() < 8:
+					continue
 				sc.append(_sc("diga:" + d, Dati.DIGHE[d]["nome"], "%d rv. %s" % [int(Dati.DIGHE[d]["rv"]), _info_diga(d)]))
 			if st["passo"] == "secondario":
 				sc.append(_sc("diga:", "Nessun secondario"))
@@ -905,6 +1025,28 @@ func _f_sortita() -> void:
 			for x in liberi:
 				sc.append(_sc("lanc:" + x, _desc_aereo(x)))
 			_chiedi("f_sortita", "Lancaster isolato", "Quale Lancaster vola da solo?", sc)
+
+## Il bersaglio di riserva è obbligatorio e non può essere già un bersaglio principale o secondario,
+## a meno che tutte e otto le dighe siano già bersagli [11.5].
+func _bersagli_usati() -> Array:
+	var u := []
+	for g in (s["sortita"]["gruppi"] if s.has("sortita") else []):
+		for k in ["primario", "secondario"]:
+			var d: String = g.get(k, "")
+			if d != "" and not d in u:
+				u.append(d)
+	return u
+
+func _controlla_riserva() -> void:
+	var u := _bersagli_usati()
+	if not s["riserva"] in u or u.size() >= 8:
+		return
+	var vecchia: String = s["riserva"]
+	for d in ["mohne", "eder", "sorpe", "diemel", "lister", "ennepe", "bever", "henne"]:
+		if not d in u:
+			s["riserva"] = d
+			break
+	_log("La %s è già un bersaglio delle onde: il bersaglio di riserva diventa la %s." % [Dati.DIGHE[vecchia]["nome"], Dati.DIGHE[s["riserva"]]["nome"]])
 
 func _desc_aereo(id: String) -> String:
 	var l := lanc(id)
@@ -970,6 +1112,10 @@ func _scelta_sortita(id: String) -> void:
 					st["passo"] = "isolato"
 				"riserva":
 					st["passo"] = "riserva"
+				"unisci":
+					var lib: Array = st["pronti"].filter(func(x): return not st["assegnati"].has(x))
+					st["gruppi"][-1]["membri"].append(lib[0])
+					st["assegnati"].append(lib[0])
 				"auto":
 					_piano_automatico()
 				"decolla":
@@ -1017,11 +1163,15 @@ func _piano_automatico() -> void:
 		st["assegnati"].append_array(m)
 		k += 1
 	for x in liberi:
-		st["gruppi"].append({"membri": [x], "primario": ordine[k % 3], "secondario": ordine[(k + 1) % 3]})
+		if not s["vhf"] and not st["gruppi"].is_empty():
+			st["gruppi"][-1]["membri"].append(x)
+		else:
+			st["gruppi"].append({"membri": [x], "primario": ordine[k % 3], "secondario": ordine[(k + 1) % 3]})
 		st["assegnati"].append(x)
 	_log("Piano automatico: %s" % _riassunto_onde())
 
 func _decolla() -> void:
+	_controlla_riserva()
 	var st: Dictionary = s["sortita"]
 	var cap := _capacita_sortita()
 	var turno := 1
@@ -1039,8 +1189,10 @@ func _decolla() -> void:
 			oid = "O%d" % s["onde"].size()
 			s["onde"][oid] = {"nome": nomi[mini(ko, nomi.size() - 1)], "capo": m[0], "buona": true, "membri": m.duplicate()}
 			ko += 1
-		for x in m:
+		for i in m.size():
+			var x: String = m[i]
 			var l := lanc(x)
+			l["ordine"] = [ko - 1 if oid != "" else 50 + i, i]
 			l["onda"] = oid
 			l["primario"] = g["primario"]
 			l["secondario"] = g.get("secondario", "")
@@ -1053,6 +1205,8 @@ func _decolla() -> void:
 	for d in s["dighe"]:
 		s["dighe"][d]["flak_iniziale"] = int(s["dighe"][d]["flak"])
 	s.erase("sortita")
+	if not s["vhf"]:
+		_log("Senza radio VHF: niente coordinamento, radio solo per singoli Lancaster, e alle dighe si attacca nell'ordine dell'onda (il primo scelto è il capo).")
 	_log("== Decollo: %d Lancaster verso le dighe (capacità di sortita %d per turno di volo) ==" % [s["lanc"].size(), cap])
 	s["turno_volo"] = 1
 	s["fase"] = "v_inizio"
@@ -1100,23 +1254,117 @@ func _arrivo_diga(d: String) -> void:
 	x["flak_iniziale"] = int(x["flak"])
 
 # ================================================================ rapporto
+## Debriefing in cinque passi (Scenario Book, scenario 10).
 func _rapporto_volo(rientrati: int) -> Dictionary:
 	var r := super._rapporto_volo(rientrati)
-	var rv: int = int(r["rv"])
-	if s["dighe"]["mohne"]["breccia"] and s["dighe"]["sorpe"]["breccia"]:
-		rv += 1
-	var persi: int = int(r["persi"])
 	var tot: int = s["lanc"].size()
+	var persi_l: Array = s["lanc"].filter(func(l): return l["pos"] in ["distrutto", "perso"])
+	var rotte := []
+	var rv := 0
+	for d in s["dighe"]:
+		if s["dighe"][d]["breccia"]:
+			rotte.append(d)
+			rv += int(Dati.DIGHE[d]["rv"])
+	# passo 1: 5 Group
+	var perdita: int = int(s.get("perdite_rp", 0))
+	for l in persi_l:
+		perdita += int(Dati.COSTO_EQUIPAGGIO[l["equip"]])
+		if l["elite"] != "":
+			perdita += 1
+	var p1: Array = [3, "accettabili", "Le perdite sono sostenibili: il 5 Group resta pienamente efficiente."]
+	if perdita >= 36: p1 = [-3, "catastrofiche (niente secondo raid)", "La squadriglia è decimata e verrà sciolta; il numero 617 porterà sfortuna."]
+	elif perdita >= 31: p1 = [-1, "gravissime (niente secondo raid)", "L'efficienza del 5 Group è compromessa: servono rimpiazzi immediati."]
+	elif perdita >= 25: p1 = [0, "pesanti", "Troppi equipaggi esperti sacrificati: l'efficienza del Group cala."]
+	elif perdita >= 16: p1 = [1, "moderate", "Perdite sostenibili, ma servono rimpiazzi."]
+	# passo 2: Bomber Command
+	var bc: int = rv - persi_l.size()
+	var p2: Array = [-1, "fallimento imbarazzante"]
+	if bc >= 15: p2 = [8, "successo brillante"]
+	elif bc >= 12: p2 = [5, "missione riuscita"]
+	elif bc >= 8: p2 = [3, "missione compiuta"]
+	elif bc >= 5: p2 = [2, "missione completata"]
+	elif bc >= 2: p2 = [1, "missione fallita o incompleta"]
+	elif bc >= -1: p2 = [0, "esperimento fallito"]
+	# passo 3: ministero della produzione aeronautica
+	var n: int = rotte.size()
+	var p3: Array = [1 if int(s["allerta"]) == 0 else -1, "esperimento"]
+	if n >= 5: p3 = [10 + (5 if rv >= 25 else 0), "svolta strategica"]
+	elif n == 4: p3 = [9, "missione riuscita"]
+	elif n == 3: p3 = [7 + (1 if rv >= 10 else 0), "missione compiuta"]
+	elif n == 2: p3 = [5 + (1 if rv >= 10 else 0), "successo"]
+	elif n == 1: p3 = [2, "occasione sprecata"]
+	# passo 4: esito politico
+	var vp: int = int(p1[0]) + int(p2[0]) + int(p3[0])
 	var t := ""
-	if rv >= 17:
-		t = "Trionfo" if persi * 4 <= tot else ("Le dighe sono cadute" if persi * 2 <= tot else "Vittoria pagata col sangue")
-	elif rv >= 8:
-		t = "Successo parziale" if persi * 2 <= tot else "Successo amaro"
-	elif rv > 0:
-		t = "Danni minori"
+	var corte := false
+	var nota := ""
+	if vp >= 18: t = "Svolta strategica della guerra"
+	elif vp >= 13: t = "Vittoria decisiva"
+	elif vp >= 11: t = "Vittoria netta"
+	elif vp >= 9: t = "Vittoria di misura"
+	elif vp >= 6: t = "Risultato incoraggiante ma imperfetto"
+	elif vp >= 4: t = "Risultato inconcludente"
+	elif vp == 3:
+		t = "Frustrazione"
+		var dd := _dadi(2)
+		corte = dd[0] + dd[1] == 2
+		nota = "Commissione d'inchiesta? 2d6 = %d: %s." % [dd[0] + dd[1], "sì" if corte else "no"]
+	elif vp == 2:
+		t = "Missione fallita"
+		var x := d6()
+		corte = x == 1
+		nota = "Commissione d'inchiesta? Dado %d: %s." % [x, "sì" if corte else "no"]
+	elif vp == 1:
+		t = "Catastrofe"
+		var x := d6()
+		corte = x % 2 == 1
+		nota = "Commissione d'inchiesta? Dado %d: %s." % [x, "sì" if corte else "no, il Primo Ministro fa tacere la notizia"]
 	else:
-		t = "Fallimento" if persi * 2 <= tot else "Disastro"
+		t = "Corte marziale"
+		corte = true
+	if corte:
+		var dd := _dadi(2)
+		var c: int = dd[0] + dd[1] + n
+		var esito := "Wallis viene escluso da ogni progetto futuro"
+		if c >= 10: esito = "liti politiche, nessuna conseguenza"
+		elif c == 9: esito = "Harris viene rimosso dal comando"
+		elif c >= 7: esito = "il comandante della squadriglia viene trasferito"
+		elif c == 6: esito = "Cochrane viene spedito a Madras"
+		nota += " Commissione d'inchiesta (%d + %d + %d dighe = %d): %s." % [dd[0], dd[1], n, c, esito]
+	# passo 5: secondo raid
+	var integri := 0
+	var a_casa: Array = s["lanc"].filter(func(l): return l["pos"] == "a casa")
+	for l in a_casa:
+		if int(l["danni"]) == 0:
+			integri += 1
+	var volati: Array = s["lanc"].map(func(l): return l["id"])
+	for a in s["aerei"]:
+		if not a["id"] in volati and int(a["danni"]) == 0:
+			integri += 1
+	var upk: int = s["upkeep_scorta"].size() + a_casa.filter(func(l): return int(l["upkeep"]) >= 0).size()
+	var vietato: bool = perdita >= 31
+	var p5 := "Secondo raid: "
+	if vietato:
+		p5 += "escluso dal 5 Group per le perdite."
+	elif integri >= 10 and upk >= 6:
+		p5 += "possibile (%d Lancaster integri, %d Upkeep), ma in questa versione non si gioca: l'esito resta quello del primo raid." % [integri, upk]
+	else:
+		p5 += "non possibile (servono 10 Lancaster e 6 Upkeep: ce ne sono %d e %d)." % [integri, upk]
+	var righe := [
+		"Passo 1, 5 Group: perdita equipaggi %d, %s: %+d PV" % [perdita, p1[1], int(p1[0])],
+		"Passo 2, Bomber Command: %d rv - %d Lancaster perduti = %d, %s: %+d PV" % [rv, persi_l.size(), bc, p2[1], int(p2[0])],
+		"Passo 3, Ministero: %d dighe aperte, %s: %+d PV" % [n, p3[1], int(p3[0])],
+		"Passo 4, esito politico: %d PV, %s" % [vp, t.to_lower()],
+		p5]
+	r["passi"] = righe
 	r["titolo"] = t
 	r["rv"] = rv
-	r["spiega"] = ("Nessun Lancaster è partito." if tot == 0 else "") + "Campagna conclusa con %d rv di dighe aperte su %d Lancaster partiti. Storicamente: Möhne ed Eder aperte (17 rv), 8 Lancaster su 19 perduti." % [rv, tot] + (String(r["spiega"]).substr(String(r["spiega"]).find(" Sorte")) if String(r["spiega"]).contains(" Sorte") else "")
+	r["pv"] = vp
+	var spiega := ("Nessun Lancaster è partito. " if tot == 0 else "") + String(p1[2])
+	if nota != "":
+		spiega += " " + nota
+	spiega += " Storicamente: Möhne ed Eder aperte (17 rv), 8 Lancaster su 19 perduti."
+	if String(r["spiega"]).contains(" Sorte"):
+		spiega += String(r["spiega"]).substr(String(r["spiega"]).find(" Sorte"))
+	r["spiega"] = spiega
 	return r

@@ -272,7 +272,14 @@ func _applica(a: Dictionary, id: String) -> void:
 			if id != "nessuno":
 				_log("%s porta con sé %s (%s)." % [nome_l(l), Dati.SPECIALISTI[id]["nome"], Dati.RUOLI[ruolo(l)][0].to_lower()])
 		"corsa":
-			if id == "nessuno":
+			if id.begins_with("very:"):
+				var cl := lanc(id.substr(5))
+				cl["razzo"] = true
+				s["razzi"].append({"turno": int(s["turno"]), "giro": int(s["giri_8"]), "assoluto": int(s["turni"]), "deviazione": true})
+				dg()["attivita"] = int(dg()["attivita"]) + 1
+				_log("%s spara un razzo Very: l'ordine d'attacco può cambiare (attività %d)." % [cl["id"], int(dg()["attivita"])])
+				s["fase"] = "corsa"
+			elif id == "nessuno":
 				_log("Nessun Lancaster inizia l'avvicinamento in questo turno.")
 				s["fase"] = "giro"
 			else:
@@ -371,10 +378,54 @@ func _f_corsa() -> void:
 		s["fase"] = "giro"
 		return
 	var sc := []
+	var testo := "Un solo Lancaster con l'Upkeep può lasciare il Cerchio vicino e iniziare l'avvicinamento nella zona lontana."
+	if senza_vhf() and not _razzo_in_turno():
+		var amm := _ordine_attacco(ok)
+		if amm.size() < ok.size():
+			testo += " Senza radio VHF si segue l'ordine d'attacco: tocca a %s (il capo onda può passare avanti). Un razzo Very del capo onda permette di deviare." % ", ".join(amm.map(func(x): return x["id"]))
+			for l in ok:
+				if l in amm:
+					sc.append(_sc(l["id"], "Avvicinamento: %s" % nome_l(l), _descrivi(l)))
+			for l in lanc_in("vicino"):
+				if _e_capo(l) and not l["razzo"]:
+					sc.append(_sc("very:" + l["id"], "%s spara un razzo Very e cambia l'ordine" % l["id"], "Attività +1; in questo turno qualunque Lancaster del Cerchio vicino può iniziare l'avvicinamento."))
+					break
+			sc.append(_sc("nessuno", "Nessun avvicinamento in questo turno", "Si passa alla fase di volo in cerchio."))
+			_chiedi("corsa", "Fase di corsa", testo, sc)
+			return
 	for l in ok:
 		sc.append(_sc(l["id"], "Avvicinamento: %s" % nome_l(l), _descrivi(l)))
 	sc.append(_sc("nessuno", "Nessun avvicinamento in questo turno", "Si passa alla fase di volo in cerchio."))
-	_chiedi("corsa", "Fase di corsa", "Un solo Lancaster con l'Upkeep può lasciare il Cerchio vicino e iniziare l'avvicinamento nella zona lontana.", sc)
+	_chiedi("corsa", "Fase di corsa", testo, sc)
+
+## Ordine d'attacco senza radio VHF [11.6]: per onda (in ordine di numero) e per posizione nell'onda;
+## il capo onda può sempre passare avanti.
+func senza_vhf() -> bool:
+	return not s.get("vhf", true)
+
+func _e_capo(l: Dictionary) -> bool:
+	var oid: String = l.get("onda", "")
+	return oid != "" and s.has("onde") and s["onde"].has(oid) and s["onde"][oid]["capo"] == l["id"]
+
+func _razzo_in_turno() -> bool:
+	for r in s["razzi"]:
+		if int(r.get("assoluto", -1)) == int(s["turni"]) and r.get("deviazione", false):
+			return true
+	return false
+
+func _ordine_attacco(ok: Array) -> Array:
+	var primo := {}
+	var chiave := [999, 999]
+	for l in ok:
+		var o: Array = l.get("ordine", [99, 99])
+		if int(o[0]) < int(chiave[0]) or (int(o[0]) == int(chiave[0]) and int(o[1]) < int(chiave[1])):
+			chiave = o
+			primo = l
+	var r := []
+	for l in ok:
+		if l == primo or (_e_capo(l) and int(l.get("ordine", [99, 99])[0]) == int(chiave[0])):
+			r.append(l)
+	return r
 
 func _descrivi(l: Dictionary) -> String:
 	var t := "Equipaggio %s" % Dati.NOME_EQUIPAGGIO[l["equip"]].to_lower()
@@ -401,6 +452,10 @@ func _inizia_avvicinamento(id: String) -> void:
 		"blocca_v": false, "blocca_q": false, "m": 0, "anticipato": false, "tardivo": 0, "S": 0, "A": 0}
 	l["pos"] = "avvicinamento"
 	_log("%s entra nella zona lontana dell'avvicinamento." % nome_l(l))
+	if l.get("jinx", false):
+		var dj := d6()
+		s["avv"]["jinx_coppa"] = "v" if dj % 2 == 0 else "q"
+		_log("Il cane di Gibson è a bordo (dado %d): finisce fra i gettoni %s e, se esce, vale come «irregolare» (+0)." % [dj, "Velocità" if dj % 2 == 0 else "Quota"])
 	_chiedi_scorte()
 
 func _chiedi_scorte() -> void:
@@ -538,7 +593,7 @@ func _pesca(tipo: String, n: int) -> Array:
 	var r := []
 	# il cane di Gibson finisce nella tazza con i gettoni del suo Lancaster: se esce vale 0 [13.0]
 	var l := lanc(s["avv"].get("lanc", ""))
-	if not l.is_empty() and l.get("jinx", false) and n > 0 and int(_rng() % (coppa.size() + 1)) < n:
+	if not l.is_empty() and l.get("jinx", false) and s["avv"].get("jinx_coppa", "") == tipo and n > 0 and int(_rng() % (coppa.size() + 1)) < n:
 		r.append("J")
 		n -= 1
 		_log("Dalla tazza esce il cane di Gibson: quel gettone vale 0.")
@@ -1165,6 +1220,11 @@ func _f_giro() -> void:
 	for l in lanc_in("salita"):
 		l["pos"] = "vicino"
 		_log("%s dalla risalita torna al Cerchio vicino." % l["id"])
+	if senza_vhf():
+		for l in lanc_in("lontano"):
+			if int(l["upkeep"]) >= 0 and not l.get("trattenuto", false):
+				l["pos"] = "vicino"
+				_log("Senza radio VHF %s va subito al Cerchio vicino con il suo Upkeep." % l["id"])
 	var sc := _scelte_giro()
 	if sc.size() <= 1 or sulla_mappa().is_empty():
 		_chiudi_giro()
@@ -1174,11 +1234,13 @@ func _f_giro() -> void:
 func _scelte_giro() -> Array:
 	var sc := []
 	for l in s["lanc"]:
+		var vincolato: bool = senza_vhf() and int(l["upkeep"]) >= 0 and not _razzo_in_turno()
 		if l["pos"] == "vicino" and not l["razzo"]:
-			sc.append(_sc("lontano:" + l["id"], "%s al Cerchio lontano" % l["id"], ""))
+			if not vincolato:
+				sc.append(_sc("lontano:" + l["id"], "%s al Cerchio lontano" % l["id"], ""))
 			if not l["razzo"] and l["inizio_vicino"]:
 				sc.append(_sc("razzo:" + l["id"], "%s spara un razzo Very" % l["id"], "Ogni razzo annulla un effetto Quota del vettore d'avvicinamento, ma alza di 1 l'attività."))
-		elif l["pos"] == "lontano":
+		elif l["pos"] == "lontano" and not (senza_vhf() and l.get("trattenuto", false) and not _razzo_in_turno()):
 			sc.append(_sc("vicino:" + l["id"], "%s al Cerchio vicino" % l["id"], ""))
 		if l["pos"] in ["vicino", "lontano"] and int(l["upkeep"]) < 0:
 			sc.append(_sc("rientra:" + l["id"], "%s lascia il bersaglio e rientra" % l["id"], "Senza Upkeep: farà il controllo del rientro alla base a fine partita."))
@@ -1194,13 +1256,16 @@ func _applica_giro(id: String) -> void:
 	match p[0]:
 		"lontano":
 			l["pos"] = "lontano"
+			if senza_vhf():
+				l["trattenuto"] = true
 			_log("%s passa al Cerchio lontano." % l["id"])
 		"vicino":
 			l["pos"] = "vicino"
+			l.erase("trattenuto")
 			_log("%s passa al Cerchio vicino." % l["id"])
 		"razzo":
 			l["razzo"] = true
-			s["razzi"].append({"turno": int(s["turno"]), "giro": int(s["giri_8"]), "assoluto": int(s["turni"])})
+			s["razzi"].append({"turno": int(s["turno"]), "giro": int(s["giri_8"]), "assoluto": int(s["turni"]), "deviazione": senza_vhf() and _e_capo(l)})
 			dg()["attivita"] = int(dg()["attivita"]) + 1
 			_log("%s spara un razzo Very sul lago (attività %d)." % [l["id"], int(dg()["attivita"])])
 		"rientra":

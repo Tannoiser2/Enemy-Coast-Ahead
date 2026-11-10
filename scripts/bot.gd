@@ -215,7 +215,14 @@ func _campagna(tipo: String, ids: Array, s: Dictionary) -> String:
 			return "fine"
 		"p_lancio":
 			return "lancia" if int(s["piano"]) >= 3 else "attendi"
+		"p_add_rip":
+			return "ritira" if "ritira" in ids and p.s.get("add_tiro", {}).get("x", 6) <= 2 else "tieni"
 		"f_aerei", "f_ordigni":
+			if "tieni" in ids:
+				for id in ids:
+					if id.begins_with("ritira:") and int(p.s["f_tiro"]["fermi"]) >= 3:
+						return id
+				return "tieni"
 			var box := tipo.substr(2)
 			if p.dedicate(box).size() < (s["squadre"].size() + 1) / 2:
 				for id in ids:

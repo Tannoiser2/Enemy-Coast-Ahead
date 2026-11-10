@@ -147,8 +147,12 @@ func _requisiti() -> void:
 	for e in EQUIP:
 		var r := BR(EQUIP[e])
 		_badge(r.get_center() + Vector2(0, -r.size.y * 0.55), "%d" % int(p.s["equipaggi"][e]))
-		if p.s["riposati"][e]:
-			_badge(r.get_center() + Vector2(0, r.size.y * 0.75), "riposo", Color(0.7, 0.85, 0.7))
+		var rip := []
+		for c in ["nav", "quota", "bomba"]:
+			if p.riposato(e, c):
+				rip.append({"nav": "nav", "quota": "quota", "bomba": "sgancio"}[c])
+		if not rip.is_empty():
+			_badge(r.get_center() + Vector2(0, r.size.y * 0.75), "riposo: " + ", ".join(rip), Color(0.7, 0.85, 0.7))
 	var integri: int = p.s["aerei"].filter(func(a): return int(a["danni"]) == 0).size()
 	var danneggiati: int = p.s["aerei"].size() - integri
 	var rl := BR(Rect2(797, 770, 96, 89))

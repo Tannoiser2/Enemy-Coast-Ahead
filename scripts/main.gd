@@ -771,6 +771,11 @@ func _rapporto() -> void:
 	v.add_child(_etichetta(riass, "grassetto", 18, C_TESTO))
 	if not is_volo():
 		v.add_child(_etichetta("Lancaster rientrati: %d · che proseguono: %d · Upkeep ancora a bordo: %d" % [int(e.get("rientrati", 0)), int(e.get("proseguono", 0)), int(e.get("upkeep", 0))], "testo", 16, C_GRIGIO))
+	for ps in e.get("passi", []):
+		var lp := _etichetta(str(ps), "grassetto", 16, C_ORO)
+		lp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lp.custom_minimum_size.x = 600
+		v.add_child(lp)
 	var gr := GridContainer.new()
 	gr.columns = 2 if e.get("righe", []).size() > 9 else 1
 	gr.add_theme_constant_override("h_separation", 24)

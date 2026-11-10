@@ -108,7 +108,7 @@ const GETTONI_VELOCITA := [
 
 static func gettone(id: String) -> Dictionary:
 	if id == "J":
-		return {"id": "J", "av": "cane di Gibson (0)", "sg": "cane di Gibson (0)", "n": 0, "mod": 0, "m": false}
+		return {"id": "J", "av": "cane di Gibson (irregolare)", "sg": "cane di Gibson (irregolare)", "n": 0, "mod": 0, "m": true}
 	for g in GETTONI_QUOTA + GETTONI_VELOCITA:
 		if g["id"] == id:
 			return g
